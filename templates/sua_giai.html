@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <title>Chỉnh Sửa Giải Đấu</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="bg-light">
+    <div class="container mt-5" style="max-width: 600px;">
+        <a href="/" class="btn btn-secondary btn-sm mb-3">⬅️ Hủy & Quay lại</a>
+        <div class="card shadow">
+            <div class="card-header bg-warning text-dark text-center"><h4 class="mb-0 fw-bold">✏️ SỬA GIẢI ĐẤU</h4></div>
+            <div class="card-body">
+                <form action="/sua-giai-dau/{{ giai[0] }}" method="POST">
+                    <div class="mb-3"><label class="form-label fw-bold">Tên giải đấu:</label><input type="text" name="ten_giai_dau" class="form-control" value="{{ giai[1] }}" required></div>
+                    <div class="row g-2 mb-3">
+                        <div class="col-6"><label class="form-label fw-bold">Số lượng sân:</label><input type="number" name="so_luong_san" class="form-control" value="{{ giai[2] }}" required></div>
+                        <div class="col-6"><label class="form-label fw-bold">Số người dự kiến:</label><input type="number" name="so_nguoi_du_kien" class="form-control" value="{{ giai[11] or 10 }}" min="1" required></div>
+                    </div>
+                    <div class="mb-3"><label class="form-label fw-bold">Địa điểm:</label><input type="text" name="dia_diem" class="form-control" value="{{ giai[3] or '' }}"></div>
+                    <hr>
+                    <div class="row g-2 mb-3">
+                        <div class="col-6"><label class="small">Tiền sân:</label><input type="number" name="chi_phi_san_bai" class="form-control" value="{{ giai[4]|int }}"></div>
+                        <div class="col-6"><label class="small">Tiền nước:</label><input type="number" name="chi_phi_nuoc_noi" class="form-control" value="{{ giai[5]|int }}"></div>
+                        <div class="col-6"><label class="small">Thưởng gốc:</label><input type="number" name="chi_phi_giai_thuong" class="form-control" value="{{ giai[6]|int }}"></div>
+                        <div class="col-6"><label class="small">Khác:</label><input type="number" name="chi_phi_khac" class="form-control" value="{{ giai[7]|int }}"></div>
+                    </div>
+                    <div class="p-2 border rounded bg-light mb-3">
+                        <label class="form-label small fw-bold text-primary">📊 Điều chỉnh tỷ lệ giải (3 giải):</label>
+                        <div class="input-group input-group-sm">
+                            <input type="number" name="ty_le_giai_1" class="form-control text-center" value="{{ giai[8] or 5 }}" required>
+                            <span class="input-group-text">/</span>
+                            <input type="number" name="ty_le_giai_2" class="form-control text-center" value="{{ giai[9] or 3 }}" required>
+                            <span class="input-group-text">/</span>
+                            <input type="number" name="ty_le_giai_3" class="form-control text-center" value="{{ giai[10] or 2 }}" required>
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-warning w-100 fw-bold">Cập Nhật Thay Đổi</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
