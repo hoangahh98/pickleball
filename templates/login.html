@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Đăng Nhập Pickleball</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .login-card {
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+            border-radius: 10px;
+        }
+        .tab-button {
+            cursor: pointer;
+            padding: 10px 20px;
+            border: none;
+            background: #f0f0f0;
+            font-weight: bold;
+            transition: all 0.3s;
+        }
+        .tab-button.active {
+            background: #667eea;
+            color: white;
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+        .icon-header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+        .icon-header h1 {
+            font-size: 2.5rem;
+            color: #667eea;
+        }
+    </style>
+</head>
+<body>
+    <div class="container" style="max-width: 450px;">
+        <div class="card login-card bg-white">
+            <!-- Header -->
+            <div class="card-body p-4">
+                <div class="icon-header">
+                    <h1>🏸</h1>
+                    <h2 class="text-dark fw-bold mb-1">Pickleball Manager</h2>
+                    <p class="text-muted">Quản lý giải đấu dễ dàng</p>
+                </div>
+
+                <!-- Tabs -->
+                <div class="d-flex mb-4 rounded" style="background: #f8f9fa;">
+                    <button type="button" class="tab-button active flex-fill rounded-start" onclick="switchTab('admin')">
+                        👤 Admin
+                    </button>
+                    <button type="button" class="tab-button flex-fill rounded-end" onclick="switchTab('vdv')">
+                        🏆 VĐV
+                    </button>
+                </div>
+
+                <!-- Admin Login Tab -->
+                <div id="admin" class="tab-content active">
+                    <form action="/dang-nhap" method="POST">
+                        <input type="hidden" name="role" value="admin">
+                        
+                        <div class="form-group">
+                            <label class="form-label fw-bold">📧 Email</label>
+                            <input type="email" name="email" class="form-control form-control-lg" 
+                                   placeholder="admin@example.com" required>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label fw-bold">🔐 Mật khẩu</label>
+                            <input type="password" name="password" class="form-control form-control-lg" 
+                                   placeholder="Nhập mật khẩu" required>
+                        </div>
+
+                        <div class="d-grid">
+                            <button type="submit" class="btn btn-primary btn-lg fw-bold">
+                                🔓 Đăng Nhập Admin
+                            </button>
+                        </div>
+
+                        <div class="text-center mt-3">
+                            <p class="text-muted small">Chưa có tài khoản?</p>
+                            <button type="button" class="btn btn-outline-primary btn-sm" 
+                                    data-bs-toggle="modal" data-bs-target="#registerModal">
+                                ➕ Tạo tài khoản Admin mới
+                            </button>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- VĐV Login Tab -->
+                <div id="vdv" class="tab-content">
+                    <form action="/dang-nhap" method="POST">
+                        <input type="hidden" name="role" value="vdv">
+                        
+                        <div class="form-group">
+                            <label class="form-label fw-bold">📧 Email</label>
+                            <input type="email" name="email" class="form-control form-control-lg" 
+                                   placeholder="vdv@example.com" required>
+                            <small class="text-muted">Email bạn đã cung cấp khi đăng ký giải</small>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label fw-bold">🔐 Mật khẩu</label>
+                            <input type="password" name="password" class="form-control form-control-lg" 
+                                   placeholder="Mật khẩu mặc định: 123456789" required>
+                            <small class="text-muted">Mặc định: <strong>123456789</strong></small>
+                        </div>
+
+                        <div class="d-grid">
+                            <button type="submit" class="btn btn-success btn-lg fw-bold">
+                                🔓 Đăng Nhập VĐV
+                            </button>
+                        </div>
+
+                        <div class="text-center mt-3">
+                            <p class="text-muted small">Lần đầu đăng nhập?</p>
+                            <p class="small">Yêu cầu Ban tổ chức gửi link đăng ký giải</p>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- Error Message -->
+                {% if error %}
+                <div class="alert alert-danger mt-3" role="alert">
+                    ⚠️ {{ error }}
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- Footer -->
+            <div class="card-footer bg-light text-center py-3">
+                <small class="text-muted">
+                    © 2024 Pickleball Manager | 
+                    <a href="/" class="text-decoration-none">Về trang chủ</a>
+                </small>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Tạo Admin -->
+    <div class="modal fade" id="registerModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title">➕ Tạo Tài Khoản Admin</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <form action="/tao-admin" method="POST">
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">📧 Email Admin</label>
+                            <input type="email" name="email" class="form-control" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">🔐 Mật khẩu</label>
+                            <input type="password" name="password" class="form-control" required>
+                            <small class="text-muted">Tối thiểu 6 ký tự</small>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">🔐 Xác nhận mật khẩu</label>
+                            <input type="password" name="confirm_password" class="form-control" required>
+                        </div>
+                        {% if register_error %}
+                        <div class="alert alert-danger" role="alert">
+                            {{ register_error }}
+                        </div>
+                        {% endif %}
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button>
+                        <button type="submit" class="btn btn-primary">✅ Tạo Admin</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+    function switchTab(tab) {
+        // Ẩn tất cả tab
+        document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+        document.querySelectorAll('.tab-button').forEach(el => el.classList.remove('active'));
+        
+        // Hiển thị tab được chọn
+        document.getElementById(tab).classList.add('active');
+        event.target.classList.add('active');
+    }
+    </script>
+</body>
+</html>
