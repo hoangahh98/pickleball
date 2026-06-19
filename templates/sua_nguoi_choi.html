@@ -29,6 +29,10 @@
                         <input type="number" name="so_tien_da_dong" class="form-control" value="{{ nguoi_choi[4] }}">
                     </div>
                     <div class="mb-3">
+                        <label class="form-label">Email:</label>
+                        <input type="email" name="email" class="form-control" value="{{ nguoi_choi[6] if nguoi_choi|length > 6 else '' }}">
+                    </div>
+                    <div class="mb-3">
                         <label class="form-label">Ghi chú:</label>
                         <textarea name="ghi_chu" class="form-control" rows="2">{{ nguoi_choi[5] }}</textarea>
                     </div>

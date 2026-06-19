@@ -7,7 +7,7 @@ class FinanceService:
         if not giai_raw:
             return {}
             
-        giai_id, ten, so_san, dia_diem, cp_san, cp_nuoc, cp_giai_goc, cp_khac, tl1, tl2, tl3, so_nguoi_du_kien = giai_raw
+        giai_id, ten, so_san, dia_diem, cp_san, cp_nuoc, cp_giai_goc, cp_khac, tl1, tl2, tl3, so_nguoi_du_kien, thoi_gian, banner, qr = giai_raw if len(giai_raw) >= 15 else giai_raw + (None,) * (15 - len(giai_raw))
         
         cp_san, cp_nuoc, cp_giai_goc, cp_khac = cp_san or 0, cp_nuoc or 0, cp_giai_goc or 0, cp_khac or 0
         tl1, tl2, tl3, so_nguoi_du_kien = tl1 or 5, tl2 or 3, tl3 or 2, so_nguoi_du_kien or 10
@@ -56,7 +56,10 @@ class FinanceService:
             "giai_2": (quy_giai_thuong_moi * tl2 / tong_ty_le) if tong_ty_le > 0 else 0,
             "giai_3": (quy_giai_thuong_moi * tl3 / tong_ty_le) if tong_ty_le > 0 else 0,
             "ty_le_1": tl1, "ty_le_2": tl2, "ty_le_3": tl3,
-            "nguoi_choi_list": nguoi_choi_list
+            "nguoi_choi_list": nguoi_choi_list,
+            "thoi_gian_bat_dau": thoi_gian,
+            "banner_image": banner,
+            "qr_image": qr
         }
 
 

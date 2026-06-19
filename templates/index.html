@@ -34,6 +34,10 @@
                                 <label class="form-label">Địa điểm:</label>
                                 <input type="text" name="dia_diem" class="form-control" placeholder="Ví dụ: Sân Pickleball Yên Hòa">
                             </div>
+                            <div class="mb-3">
+                                <label class="form-label">⏰ Thời gian bắt đầu:</label>
+                                <input type="datetime-local" name="thoi_gian_bat_dau" class="form-control">
+                            </div>
                             <hr>
                             <h6 class="text-muted fw-bold">💰 Chi phí & Tỷ lệ giải</h6>
                             <div class="row g-2 mb-2">
@@ -66,11 +70,12 @@
                             {% for giai in danh_sach_giai %}
                                 <div class="list-group-item p-3 mb-3 border rounded bg-white shadow-sm">
                                     <div class="d-flex justify-content-between align-items-start border-bottom pb-2 mb-2">
-                                        <div>
+                                        <div style="flex:1">
                                             <a href="/giai-dau/{{ giai.id }}" class="text-decoration-none">
                                                 <h5 class="mb-1 text-primary fw-bold">🥇 {{ giai.ten_giai_dau }}</h5>
                                             </a>
 											<small class="text-muted">📍 {{ giai.dia_diem or 'Chưa rõ' }} | 👥 {{ giai.so_luong_nguoi }} / {{ giai.so_nguoi_du_kien }} người</small>
+                                            {% if giai.thoi_gian_bat_dau %}<div class="small text-info mt-1">⏰ {{ giai.thoi_gian_bat_dau }}</div>{% endif %}
                                         </div>
                                         <div class="text-end">
                                             <span class="badge bg-info text-dark mb-1">🏟️ {{ giai.so_luong_san }} Sân</span>
@@ -81,9 +86,10 @@
                                         </div>
                                     </div>
 
+                                    {% if giai.banner_image %}<div class="text-center mb-2"><img src="{{ giai.banner_image }}" alt="banner" style="max-width: 100%; max-height: 100px; border-radius: 4px;"></div>{% endif %}
                                     <div class="row text-muted small bg-light p-2 rounded mx-0 mb-2">
                                         <div class="col-6">💰 Lệ phí/người: <strong class="text-dark">{{ "{:,.0f}".format(giai.chi_phi_moi_nguoi) }}đ</strong></div>
-                                        <div class="col-6">💵 Tổng thu: <strong class="text-primary">{{ "{:,.0f}".format(giai.tong_tien_thuc_thu) }}đ</strong> <span class="text-success small">(đã bao gồm donate)</span></div>
+                                        <div class="col-6">💵 Tổng thu: <strong class="text-primary">{{ "{:,.0f}".format(giai.tong_tien_thuc_thu) }}đ</strong> <span class="text-success small">(+{{ "{:,.0f}".format(giai.tong_tien_donate) }}đ donate)</span></div>
                                     </div>
 
                                     <div class="row text-center small my-2 g-1 bg-white border rounded p-2 mx-0">

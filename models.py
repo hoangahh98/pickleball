@@ -9,7 +9,8 @@ class TournamentModel:
         cursor.execute("""
             SELECT id, ten_giai_dau, so_luong_san, dia_diem, 
                    chi_phi_san_bai, chi_phi_nuoc_noi, chi_phi_giai_thuong, chi_phi_khac, 
-                   ty_le_giai_1, ty_le_giai_2, ty_le_giai_3, so_nguoi_du_kien 
+                   ty_le_giai_1, ty_le_giai_2, ty_le_giai_3, so_nguoi_du_kien,
+                   thoi_gian_bat_dau, banner_image, qr_image
             FROM giai_dau WHERE id = %s;
         """, (giai_id,))
         giai_raw = cursor.fetchone()
@@ -23,7 +24,7 @@ class PlayerModel:
         conn = psycopg2.connect(**DB_CONFIG)
         cursor = conn.cursor()
         cursor.execute("""
-            SELECT id, giai_dau_id, ten_nguoi_choi, trinh_do, so_tien_da_dong, ghi_chu 
+            SELECT id, giai_dau_id, ten_nguoi_choi, trinh_do, so_tien_da_dong, ghi_chu, email 
             FROM nguoi_choi WHERE giai_dau_id = %s ORDER BY id ASC;
         """, (giai_id,))
         players = cursor.fetchall()
@@ -137,4 +138,48 @@ class MatchModel:
 
         # Sắp xếp: điểm giảm, hiệu số giảm
         xep_hang = sorted(bang.values(), key=lambda x: (-x["diem"], -x["hieu_so"]))
-        return xep_hang
+        return xep_hang        return xep_hang
+
+    @staticmethod
+    def get_bang_xep_hang_by_matches(matches):
+        """Tính xếp hạng từ danh sách trận (không query DB)"""
+        bang = {}
+        for m in matches:
+            doi_a, doi_b, d_a, d_b = m[1], m[2], m[3], m[4]
+            for doi in [doi_a, doi_b]:
+                if doi not in bang:
+                    bang[doi] = {"ten": doi, "thang": 0, "thua": 0, "hieu_so": 0, "diem": 0, "so_tran": 0}
+            d_a = d_a or 0
+            d_b = d_b or 0
+            bang[doi_a]["so_tran"] += 1
+            bang[doi_b]["so_tran"] += 1
+            bang[doi_a]["hieu_so"] += d_a - d_b
+            bang[doi_b]["hieu_so"] += d_b - d_a
+            if d_a > d_b:
+                bang[doi_a]["thang"] += 1
+                bang[doi_a]["diem"] += 1
+                bang[doi_b]["thua"] += 1
+            elif d_b > d_a:
+                bang[doi_b]["thang"] += 1
+                bang[doi_b]["diem"] += 1
+                bang[doi_a]["thua"] += 1
+        return sorted(bang.values(), key=lambda x: (-x["diem"], -x["hieu_so"]))
+
+    @staticmethod
+    def save_knockout_config(giai_id, so_bang, so_doi_di_tiep):
+        """Lưu cấu hình knockout (tạm thời trong memory hoặc log)"""
+        # Có thể lưu vào bảng giai_dau nếu cần
+        pass
+
+    @staticmethod
+    def save_knockout_match(giai_id, doi_a, doi_b, vong, san):
+        """Lưu trận knockout"""
+        conn = psycopg2.connect(**DB_CONFIG)
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO tran_dau (giai_dau_id, doi_a, doi_b, trang_thai, san_so_may, vong_dau)
+            VALUES (%s, %s, %s, %s, %s, %s);
+        """, (giai_id, doi_a, doi_b, 'Chưa diễn ra', san, f"{vong} - Knockout"))
+        conn.commit()
+        cursor.close()
+        conn.close()
