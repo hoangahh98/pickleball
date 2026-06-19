@@ -21,7 +21,8 @@ class FinanceService:
         tong_tien_donate = 0
         
         for p in players_raw:
-            p_id, _, ten_p, trinh, da_dong, ghi_chu = p
+            # FIX lỗi cú pháp unpacking tuple tại đây
+            p_id, giai_dau_id_check, ten_p, trinh, da_dong, ghi_chu, email = p
             da_dong = da_dong or 0
             chenh_lech = da_dong - chi_phi_moi_nguoi
             
@@ -31,14 +32,11 @@ class FinanceService:
             tong_tien_thuc_thu += da_dong
             nguoi_choi_list.append({
                 "id": p_id, "ten": ten_p, "trinh_do": trinh,
-                "tien_dong": da_dong, "chenh_lech": chenh_lech, "ghi_chu": ghi_chu
+                "tien_dong": da_dong, "chenh_lech": chenh_lech, "ghi_chu": ghi_chu, "email": email
             })
             
-        # Quỹ thưởng = tổng tiền thực thu - chi phí vận hành (sân + nước + khác)
-        # Tiền thưởng gốc (cp_giai_goc) đã nằm trong chi_phi_moi_nguoi nên không trừ lại
         cp_van_hanh = cp_san + cp_nuoc + cp_khac
         quy_giai_thuong_thuc_te = max(0, tong_tien_thuc_thu - cp_van_hanh)
-        # Giữ lại quy_giai_thuong_moi để tương thích với chi_tiet.html
         quy_giai_thuong_moi = quy_giai_thuong_thuc_te
         tong_ty_le = tl1 + tl2 + tl3
 

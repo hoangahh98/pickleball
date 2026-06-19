@@ -138,7 +138,7 @@ class MatchModel:
 
         # Sắp xếp: điểm giảm, hiệu số giảm
         xep_hang = sorted(bang.values(), key=lambda x: (-x["diem"], -x["hieu_so"]))
-        return xep_hang        return xep_hang
+        return xep_hang
 
     @staticmethod
     def get_bang_xep_hang_by_matches(matches):
@@ -183,3 +183,22 @@ class MatchModel:
         conn.commit()
         cursor.close()
         conn.close()
+        
+    @staticmethod
+    def update_player_name_in_matches(giai_id, old_name, new_name):
+        """Tự động cập nhật lại tên VĐV cũ thành tên mới trong chuỗi ghép đôi (Ví dụ: 'A + B' thành 'A_Mới + B')"""
+        conn = psycopg2.connect(**DB_CONFIG)
+        cursor = conn.cursor()
+        try:
+            cursor.execute("""
+                UPDATE tran_dau 
+                SET doi_a = REPLACE(doi_a, %s, %s),
+                    doi_b = REPLACE(doi_b, %s, %s)
+                WHERE giai_dau_id = %s;
+            """, (old_name, new_name, old_name, new_name, giai_id))
+            conn.commit()
+        except Exception as e:
+            print(f"Lỗi cập nhật tên trận đấu: {str(e)}")
+        finally:
+            cursor.close()
+            conn.close()

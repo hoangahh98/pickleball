@@ -33,25 +33,21 @@
     <a href="/" class="btn btn-secondary btn-sm mb-3">⬅️ Quay lại trang chủ</a>
 
     <!-- HEADER GIẢI -->
-    <div class="bg-white p-4 rounded shadow-sm mb-4 border-start border-success border-5">
-        <h2 class="text-success fw-bold">🏆 {{ giai.ten_giai_dau }}</h2>
-        <div class="row small text-muted mb-2">
-            <div class="col-md-4">📍 Địa điểm: <strong>{{ giai.dia_diem or 'Chưa rõ' }}</strong></div>
-            <div class="col-md-4">⏰ Thời gian: <strong>{{ giai.thoi_gian_bat_dau or 'Chưa xác định' }}</strong></div>
-            <div class="col-md-4 text-danger">💰 Lệ phí/người: <strong>{{ "{:,.0f}".format(giai.chi_phi_moi_nguoi) }}đ</strong></div>
-        </div>
-        <div class="row small text-muted">
-            <div class="col-md-4">👥 Tham gia: <strong>{{ giai.so_luong_nguoi }} / {{ giai.so_nguoi_du_kien }} người</strong></div>
+    {% if giai.banner_image %}
+    <div class="hero-banner mb-4" style="background-image: url('{{ giai.banner_image }}');">
+        <div class="hero-content text-center">
+            <h2 class="fw-bold mb-3" style="font-size: 2.5rem;">🏆 {{ giai.ten_giai_dau }}</h2>
+            <div class="row small text-white">
+                <div class="col-md-4">📍 {{ giai.dia_diem or 'Chưa rõ' }}</div>
+                <div class="col-md-4">⏰ {{ giai.thoi_gian_bat_dau or 'Chưa xác định' }}</div>
+                <div class="col-md-4">👥 {{ giai.so_luong_nguoi }}/{{ giai.so_nguoi_du_kien }} người</div>
+            </div>
         </div>
     </div>
-
-    <!-- BANNER NHÀ TÀI TRỢ -->
-    {% if giai.banner_image %}
-    <div class="mb-4">
-        <div class="text-center bg-dark rounded p-3">
-            <h6 class="text-white mb-2">🏆 Tài Trợ Vàng</h6>
-            <img src="{{ giai.banner_image }}" alt="banner" style="max-width: 100%; max-height: 200px; border-radius: 4px;">
-        </div>
+    {% else %}
+    <div class="bg-success p-4 rounded shadow-sm mb-4 text-white">
+        <h2 class="fw-bold">🏆 {{ giai.ten_giai_dau }}</h2>
+        <p class="mb-0">📍 {{ giai.dia_diem or 'Chưa rõ' }} | ⏰ {{ giai.thoi_gian_bat_dau or 'Chưa xác định' }} | 👥 {{ giai.so_luong_nguoi }}/{{ giai.so_nguoi_du_kien }} người</p>
     </div>
     {% endif %}
 
