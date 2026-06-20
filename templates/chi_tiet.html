@@ -50,9 +50,9 @@
         <div class="card shadow-sm mb-4">
             <div class="card-header bg-success text-white fw-bold">👑 TOP 3 MẠNH THƯỜNG QUÂN</div>
             <div class="card-body">
-                {% for i, (ten, tien) in enumerate(giai.top_3_donate) %}
+                {% for idx, (ten, tien) in enumerate(giai.top_3_donate) %}
                 <div class="alert alert-warning mb-2">
-                    {% if i == 0 %}🥇{% elif i == 1 %}🥈{% else %}🥉{% endif %}
+                    {% if idx == 0 %}🥇{% elif idx == 1 %}🥈{% else %}🥉{% endif %}
                     <strong>{{ ten }}</strong> - {{ "{:,.0f}".format(tien) }}đ
                 </div>
                 {% endfor %}
@@ -68,9 +68,9 @@
                 <table class="table table-sm">
                     <thead><tr><th>Hạng</th><th>Đội</th><th>Thắng</th><th>Thua</th><th>Hiệu Số</th><th>Điểm</th></tr></thead>
                     <tbody>
-                    {% for xh in giai.bang_xep_hang %}
+                    {% for idx, xh in enumerate(giai.bang_xep_hang) %}
                     <tr>
-                        <td>{{ loop.index }}</td>
+                        <td>{{ idx + 1 }}</td>
                         <td><strong>{{ xh.ten }}</strong></td>
                         <td>{{ xh.thang }}</td>
                         <td>{{ xh.thua }}</td>
@@ -140,8 +140,11 @@
                     <a href="/giai-dau/{{ giai.id }}/them-nguoi-choi" class="btn btn-success btn-sm">➕ Thêm VĐV</a>
                     <a href="#" class="btn btn-info btn-sm" onclick="copyEmails()">📋 Get Email</a>
                     <a href="/giai-dau/{{ giai.id }}/email-template" class="btn btn-warning btn-sm" target="_blank">✉️ Email Mẫu</a>
-                    <a href="/giai-dau/{{ giai.id }}/chia-lich" class="btn btn-secondary btn-sm" 
-                       onclick="return confirm('Tạo lịch mới sẽ xóa lịch cũ. Tiếp tục?')">🎲 Tự Sinh Lịch</a>
+                    <a href="#" class="btn btn-secondary btn-sm" 
+                       onclick="return confirm('Tạo lịch mới sẽ xóa lịch cũ. Tiếp tục?') && document.getElementById('chia-lich-form').submit()">🎲 Tự Sinh Lịch</a>
+                    <form id="chia-lich-form" action="/giai-dau/{{ giai.id }}/chia-lich" method="POST" style="display:none;">
+                        <input type="hidden" name="loai_chia" value="vong_tron">
+                    </form>
                 </div>
 
                 <table class="table table-sm table-striped">

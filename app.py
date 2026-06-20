@@ -18,18 +18,17 @@ logger = get_logger('pickleball.app')
 @app.route('/')
 @login_required
 def trang_chu():
-    """Trang chủ - Admin xem danh sách giải"""
+    """Trang chủ"""
     user = session.get('user', {})
     LogHelper.log_request('GET', '/', user.get('email'))
     
     if user.get('role') != 'admin':
-        logger.info(f"VĐV {user.get('email')} redirected to vdv_dashboard")
         return redirect(url_for('vdv_dashboard'))
     
     try:
         conn = psycopg2.connect(**DB_CONFIG)
         cursor = conn.cursor()
-        # ✅ FIX: Specify g.id, g.so_luong_san to avoid ambiguity
+        # ✅ FIX: Specify columns explicitly
         cursor.execute("""
             SELECT g.id, g.ten_giai_dau, g.so_luong_san, g.dia_diem, 
                    g.chi_phi_san_bai, g.chi_phi_nuoc_noi, g.chi_phi_giai_thuong, g.chi_phi_khac, 
@@ -150,7 +149,7 @@ def chi_tiet_giai(giai_id):
         
         giai_detail = FinanceService.tinh_toan_dong_tien(giai_raw, players_raw)
         
-        # Tính top 3 donate
+        # ✅ Tính top 3 donate
         top_3_donate = []
         if giai_detail.get('nguoi_choi_list'):
             sorted_players = sorted(
@@ -180,7 +179,7 @@ def chi_tiet_giai(giai_id):
 @app.route('/giai-dau/<int:giai_id>/chia-lich', methods=['POST'])
 @admin_required
 def auto_chia_lich(giai_id):
-    """Tự sinh lịch thi đấu"""
+    """Tự sinh lịch"""
     try:
         logger.info(f"Generating schedule for tournament {giai_id}")
         
@@ -470,8 +469,9 @@ def vdv_dashboard():
         
         conn = psycopg2.connect(**DB_CONFIG)
         cursor = conn.cursor()
+        # ✅ FIX: Get ALL tournaments for this VĐV (even if same email)
         cursor.execute("""
-            SELECT g.id, 
+            SELECT DISTINCT g.id, 
                    g.ten_giai_dau, 
                    g.so_luong_san, 
                    g.dia_diem,
@@ -485,19 +485,17 @@ def vdv_dashboard():
                    g.so_nguoi_du_kien,
                    g.thoi_gian_bat_dau, 
                    g.banner_image, 
-                   g.qr_image,
-                   COUNT(n.id) as so_luong_nguoi
+                   g.qr_image
             FROM giai_dau g
-            LEFT JOIN nguoi_choi n ON g.id = n.giai_dau_id
-            WHERE g.id IN (SELECT DISTINCT giai_dau_id FROM nguoi_choi WHERE id = %s)
-            GROUP BY g.id
+            INNER JOIN nguoi_choi n ON g.id = n.giai_dau_id
+            WHERE n.id = %s
             ORDER BY g.id DESC;
         """, (vdv_id,))
         rows = cursor.fetchall()
         cursor.close()
         conn.close()
         
-        LogHelper.log_success(f"Loaded {len(rows)} tournaments for VĐV {user.get('email')}")
+        LogHelper.log_success(f"Loaded {len(rows)} tournaments for VĐV {user.get('email')} (ID: {vdv_id})")
         
         vdv_giai = []
         for row in rows:
