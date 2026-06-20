@@ -43,6 +43,13 @@
                         <input type="text" class="form-control" name="dia_diem" value="{{ giai[3] or '' }}">
                     </div>
 
+                    <!-- ✅ FIXED: Thêm input thời gian -->
+                    <div class="mb-3">
+                        <label class="form-label">⏰ Thời Gian Bắt Đầu</label>
+                        <input type="datetime-local" class="form-control" name="thoi_gian_bat_dau" 
+                               value="{% if giai[12] %}{{ giai[12].strftime('%Y-%m-%dT%H:%M') }}{% endif %}">
+                    </div>
+
                     <hr class="my-4">
                     <h6 class="text-muted">💰 CHI PHÍ</h6>
 

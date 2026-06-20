@@ -1,6 +1,10 @@
+"""
+FIXED: Unpacking issue + correct player calculation
+"""
+
 from flask import Flask, render_template, request, redirect, url_for, jsonify, session
 import os
-from models import VanDongVienModel, TournamentModel, DangKyGiaiModel, MatchModel
+from models_NEW import VanDongVienModel, TournamentModel, DangKyGiaiModel, MatchModel
 from services import FinanceService, MatchSchedulerService
 from auth import AuthService, login_required, admin_required
 from config import DB_CONFIG, FLASK_SECRET_KEY, get_logger, LogHelper
@@ -9,6 +13,26 @@ import psycopg2
 app = Flask(__name__)
 app.secret_key = FLASK_SECRET_KEY
 logger = get_logger('pickleball.app')
+
+# ============ HELPER FUNCTION ============
+
+def prepare_tournament_detail(giai_raw, registrations):
+    """
+    ✅ FIXED: Correctly prepare player data for financial calculation
+    
+    registrations from DangKyGiaiModel.get_by_tournament() returns:
+    (dkg.id, dkg.van_dong_vien_id, vdv.ten_vdv, vdv.trinh_do, vdv.email,
+     dkg.so_tien_da_dong, dkg.trang_thai_dong_tien, dkg.ghi_chu)
+    
+    FinanceService expects: (id, ten, trinh_do, email, so_tien)
+    """
+    players_for_calc = []
+    for reg in registrations:
+        # reg[0]=id, reg[1]=van_dong_vien_id, reg[2]=ten, reg[3]=trinh_do, reg[4]=email, reg[5]=so_tien
+        player_tuple = (reg[1], reg[2], reg[3], reg[4], reg[5])
+        players_for_calc.append(player_tuple)
+    
+    return FinanceService.tinh_toan_dong_tien(giai_raw, players_for_calc)
 
 # ============ ADMIN ROUTES ============
 
@@ -43,11 +67,8 @@ def trang_chu():
         danh_sach_giai = []
         for row in rows:
             giai_raw = tuple(row[:15])
-            # Get registrations for financial calculation
             registrations = DangKyGiaiModel.get_by_tournament(row[0])
-            # Prepare player list for FinanceService
-            players_for_calc = [(r[1], r[2], r[3], r[4], r[5]) for r in registrations]
-            giai_detail = FinanceService.tinh_toan_dong_tien(giai_raw, players_for_calc)
+            giai_detail = prepare_tournament_detail(giai_raw, registrations)
             danh_sach_giai.append(giai_detail)
         
         return render_template('index.html', danh_sach_giai=danh_sach_giai)
@@ -76,7 +97,6 @@ def them_van_dong_vien():
         if request.method == 'GET':
             return render_template('them_van_dong_vien.html')
         
-        # POST
         ten_vdv = request.form['ten_vdv']
         trinh_do = request.form.get('trinh_do', 'C')
         email = request.form['email']
@@ -100,7 +120,6 @@ def sua_van_dong_vien(vdv_id):
                 return "Không tìm thấy", 404
             return render_template('sua_van_dong_vien.html', vdv=vdv)
         
-        # POST
         ten_vdv = request.form['ten_vdv']
         trinh_do = request.form.get('trinh_do', 'C')
         email = request.form['email']
@@ -138,15 +157,16 @@ def them_giai_dau():
             INSERT INTO giai_dau 
                 (ten_giai_dau, so_luong_san, dia_diem,
                  chi_phi_san_bai, chi_phi_nuoc_noi, chi_phi_giai_thuong, chi_phi_khac,
-                 ty_le_giai_1, ty_le_giai_2, ty_le_giai_3, so_nguoi_du_kien)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
+                 ty_le_giai_1, ty_le_giai_2, ty_le_giai_3, so_nguoi_du_kien, thoi_gian_bat_dau)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
         """, (
             request.form['ten_giai_dau'], request.form['so_luong_san'],
             request.form.get('dia_diem', ''),
             request.form.get('chi_phi_san_bai', 0), request.form.get('chi_phi_nuoc_noi', 0),
             request.form.get('chi_phi_giai_thuong', 0), request.form.get('chi_phi_khac', 0),
             request.form.get('ty_le_giai_1', 5), request.form.get('ty_le_giai_2', 3),
-            request.form.get('ty_le_giai_3', 2), request.form.get('so_nguoi_du_kien', 10)
+            request.form.get('ty_le_giai_3', 2), request.form.get('so_nguoi_du_kien', 10),
+            request.form.get('thoi_gian_bat_dau', None)
         ))
         conn.commit()
         cursor.close()
@@ -177,7 +197,7 @@ def sua_giai_dau(giai_id):
                 chi_phi_san_bai=%s, chi_phi_nuoc_noi=%s,
                 chi_phi_giai_thuong=%s, chi_phi_khac=%s,
                 ty_le_giai_1=%s, ty_le_giai_2=%s, ty_le_giai_3=%s,
-                so_nguoi_du_kien=%s
+                so_nguoi_du_kien=%s, thoi_gian_bat_dau=%s
             WHERE id=%s;
         """, (
             request.form['ten_giai_dau'], request.form['so_luong_san'],
@@ -185,7 +205,9 @@ def sua_giai_dau(giai_id):
             request.form.get('chi_phi_nuoc_noi', 0), request.form.get('chi_phi_giai_thuong', 0),
             request.form.get('chi_phi_khac', 0), request.form.get('ty_le_giai_1', 5),
             request.form.get('ty_le_giai_2', 3), request.form.get('ty_le_giai_3', 2),
-            request.form.get('so_nguoi_du_kien', 10), giai_id
+            request.form.get('so_nguoi_du_kien', 10),
+            request.form.get('thoi_gian_bat_dau', None),
+            giai_id
         ))
         conn.commit()
         cursor.close()
@@ -218,7 +240,7 @@ def xoa_giai_dau(giai_id):
 @app.route('/giai-dau/<int:giai_id>/admin')
 @admin_required
 def chi_tiet_giai_admin(giai_id):
-    """Chi tiết giải (ADMIN - Edit mode)"""
+    """Chi tiết giải (ADMIN - Edit mode) ✅ FIXED"""
     try:
         giai_raw = TournamentModel.get_details(giai_id)
         if not giai_raw:
@@ -233,9 +255,8 @@ def chi_tiet_giai_admin(giai_id):
         # Get matches
         matches = MatchModel.get_all_by_tournament(giai_id)
         
-        # Calculate finance
-        players_for_calc = [(r[1], r[2], r[3], r[4], r[5]) for r in registrations]
-        giai_detail = FinanceService.tinh_toan_dong_tien(giai_raw, players_for_calc)
+        # ✅ FIXED: Use helper function to correctly prepare data
+        giai_detail = prepare_tournament_detail(giai_raw, registrations)
         
         # Top 3 donate
         top_3_donate = []
@@ -277,7 +298,6 @@ def dang_ky_vdv(giai_id):
 def xoa_dang_ky(dang_ky_id):
     """Xóa đăng ký VĐV khỏi giải"""
     try:
-        # Get giai_id first
         conn = psycopg2.connect(**DB_CONFIG)
         cursor = conn.cursor()
         cursor.execute("SELECT giai_dau_id FROM dang_ky_giai WHERE id = %s;", (dang_ky_id,))
@@ -301,7 +321,6 @@ def cap_nhat_tien_dang_ky(dang_ky_id):
         so_tien = request.form.get('so_tien', 0)
         trang_thai = request.form.get('trang_thai', 'Chưa đóng')
         
-        # Get giai_id
         conn = psycopg2.connect(**DB_CONFIG)
         cursor = conn.cursor()
         cursor.execute("SELECT giai_dau_id FROM dang_ky_giai WHERE id = %s;", (dang_ky_id,))
@@ -329,8 +348,7 @@ def auto_chia_lich(giai_id):
         
         MatchModel.delete_by_tournament(giai_id)
         
-        # Generate match schedule
-        team_names = [r[2] for r in registrations]  # r[2] is ten_vdv
+        team_names = [r[2] for r in registrations]
         matches = MatchSchedulerService.generate_round_robin(team_names, so_san)
         MatchModel.save_matches(giai_id, matches)
         
@@ -377,9 +395,8 @@ def login():
         if role == 'admin':
             user, error = AuthService.login_admin(email, password)
         else:
-            # VĐV login
             vdv = VanDongVienModel.get_by_email(email)
-            if vdv and password == '123456789':  # Default password
+            if vdv and password == '123456789':
                 user = {"id": vdv[0], "ten": vdv[1], "email": vdv[2], "role": "vdv"}
                 error = None
             else:
@@ -439,7 +456,7 @@ def tao_admin():
 @app.route('/vdv-dashboard')
 @login_required
 def vdv_dashboard():
-    """VĐV dashboard - Xem tất cả giải mình đăng ký"""
+    """VĐV dashboard"""
     user = session.get('user', {})
     LogHelper.log_request('GET', '/vdv-dashboard', user.get('email'))
     
@@ -452,10 +469,9 @@ def vdv_dashboard():
         
         vdv_giai = []
         for row in tournaments_raw:
-            giai_raw = tuple(row[1:16])  # Skip dang_ky_id
+            giai_raw = tuple(row[1:16])
             registrations = DangKyGiaiModel.get_by_tournament(row[1])
-            players_for_calc = [(r[1], r[2], r[3], r[4], r[5]) for r in registrations]
-            giai_detail = FinanceService.tinh_toan_dong_tien(giai_raw, players_for_calc)
+            giai_detail = prepare_tournament_detail(giai_raw, registrations)
             vdv_giai.append(giai_detail)
         
         LogHelper.log_success(f"Loaded {len(vdv_giai)} tournaments for VĐV {user.get('email')}")
@@ -467,14 +483,13 @@ def vdv_dashboard():
 @app.route('/giai-dau/<int:giai_id>/vdv')
 @login_required
 def chi_tiet_giai_vdv(giai_id):
-    """Chi tiết giải (VĐV - Read only)"""
+    """Chi tiết giải (VĐV - Read only) ✅ FIXED"""
     user = session.get('user', {})
     
     if user.get('role') != 'vdv':
         return redirect(url_for('login'))
     
     try:
-        # Check if VĐV registered for this tournament
         vdv_id = user['id']
         tournaments = DangKyGiaiModel.get_by_vdv(vdv_id)
         if not any(t[1] == giai_id for t in tournaments):
@@ -485,8 +500,7 @@ def chi_tiet_giai_vdv(giai_id):
             return "Không tìm thấy giải!", 404
         
         registrations = DangKyGiaiModel.get_by_tournament(giai_id)
-        players_for_calc = [(r[1], r[2], r[3], r[4], r[5]) for r in registrations]
-        giai_detail = FinanceService.tinh_toan_dong_tien(giai_raw, players_for_calc)
+        giai_detail = prepare_tournament_detail(giai_raw, registrations)
         
         matches = MatchModel.get_all_by_tournament(giai_id)
         xep_hang = MatchModel.get_bang_xep_hang_by_matches(matches) if matches else []
