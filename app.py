@@ -4,7 +4,7 @@ FIXED: Unpacking issue + correct player calculation
 
 from flask import Flask, render_template, request, redirect, url_for, jsonify, session
 import os
-from models_NEW import VanDongVienModel, TournamentModel, DangKyGiaiModel, MatchModel
+from models import VanDongVienModel, TournamentModel, DangKyGiaiModel, MatchModel
 from services import FinanceService, MatchSchedulerService
 from auth import AuthService, login_required, admin_required
 from config import DB_CONFIG, FLASK_SECRET_KEY, get_logger, LogHelper
