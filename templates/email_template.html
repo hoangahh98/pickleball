@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Email Mẫu</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="bg-light">
+    <nav class="navbar navbar-dark bg-dark mb-4">
+        <div class="container">
+            <span class="navbar-brand mb-0 h1">✉️ Email Mẫu - {{ giai_name }}</span>
+            <button onclick="window.print()" class="btn btn-sm btn-outline-light">🖨️ In</button>
+        </div>
+    </nav>
+
+    <div class="container mt-5" style="max-width: 700px;">
+        <div class="card shadow">
+            <div class="card-body">
+                <h5 class="fw-bold mb-3">📋 Nội Dung Email Mẫu</h5>
+                <p class="text-muted small">(Copy nội dung bên dưới để gửi email cho VĐV)</p>
+                
+                <div class="border rounded p-4 bg-white" style="white-space: pre-wrap; font-family: monospace; line-height: 1.6;">{{ template }}</div>
+
+                <div class="mt-4">
+                    <button class="btn btn-primary" onclick="copyTemplate()">📋 Copy Email</button>
+                    <button class="btn btn-secondary" onclick="window.print()">🖨️ In Email</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    function copyTemplate() {
+        const text = document.querySelector('div[style*="white-space"]').innerText;
+        navigator.clipboard.writeText(text);
+        alert('✅ Copied email template!');
+    }
+    </script>
+</body>
+</html>
