@@ -452,12 +452,13 @@
                 </div>
             </div>
             <table class="table table-hover">
-                <thead><tr><th>Tên</th><th>Trình</th><th>Tiền đóng</th><th>Trạng thái</th><th>Hành động</th></tr></thead>
+                <thead><tr><th>Tên</th><th>Trình</th><th>Email</th><th>Tiền đóng</th><th>Trạng thái</th><th>Hành động</th></tr></thead>
                 <tbody>
                 {% for nguoi in giai.nguoi_choi_list %}
                 <tr>
                     <td>{{ nguoi.ten }}</td>
                     <td><span class="badge bg-secondary">{{ nguoi.trinh_do }}</span></td>
+					<td><small>{{ nguoi.email or '(chưa có)' }}</small></td>
                     <td>{{ "{:,.0f}".format(nguoi.tien_dong) }}đ</td>
                     <td>
                         {% if nguoi.chenh_lech > 0 %}<span class="badge bg-success">+{{ "{:,.0f}".format(nguoi.chenh_lech) }}đ</span>
