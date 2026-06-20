@@ -24,6 +24,22 @@ app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
+# ✅ THÊM HÀM NÀY
+def save_upload_file(file_obj):
+    """Wrapper function - Upload file an toàn"""
+    if not file_obj:
+        return None
+    if file_obj.filename == '':
+        return None
+    if not allowed_file(file_obj.filename):
+        return None
+    
+    try:
+        return save_upload_file_to_github(file_obj)
+    except Exception as e:
+        print(f"⚠️ Upload error: {str(e)}")
+        return None
+        
 def save_upload_file_to_github(file):
     """Upload file len GitHub"""
     filename = secure_filename(f"{int(time.time())}_{file.filename}")
@@ -86,12 +102,27 @@ def trang_chu():
 def them_giai_dau():
     conn = psycopg2.connect(**DB_CONFIG)
     cursor = conn.cursor()
+    
+    # ✅ THÊM: Xử lý upload
+    banner_image = None
+    qr_image = None
+    
+    if 'banner_image' in request.files and request.files['banner_image'].filename:
+        banner_file = request.files['banner_image']
+        banner_image = save_upload_file(banner_file)
+    
+    if 'qr_image' in request.files and request.files['qr_image'].filename:
+        qr_file = request.files['qr_image']
+        qr_image = save_upload_file(qr_file)
+    
+    # ✅ THÊM: thoi_gian_bat_dau, banner_image, qr_image vào INSERT
     cursor.execute("""
         INSERT INTO giai_dau 
             (ten_giai_dau, so_luong_san, dia_diem,
              chi_phi_san_bai, chi_phi_nuoc_noi, chi_phi_giai_thuong, chi_phi_khac,
-             ty_le_giai_1, ty_le_giai_2, ty_le_giai_3, so_nguoi_du_kien)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
+             ty_le_giai_1, ty_le_giai_2, ty_le_giai_3, so_nguoi_du_kien,
+             thoi_gian_bat_dau, banner_image, qr_image)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
     """, (
         request.form['ten_giai_dau'], request.form['so_luong_san'],
         request.form.get('dia_diem', ''),
@@ -99,12 +130,14 @@ def them_giai_dau():
         request.form.get('chi_phi_giai_thuong', 0), request.form.get('chi_phi_khac', 0),
         request.form.get('ty_le_giai_1', 5), request.form.get('ty_le_giai_2', 3),
         request.form.get('ty_le_giai_3', 2), request.form.get('so_nguoi_du_kien', 10),
+        request.form.get('thoi_gian_bat_dau', None) or None,  # ← THÊM
+        banner_image,  # ← THÊM
+        qr_image       # ← THÊM
     ))
     conn.commit()
     cursor.close()
     conn.close()
     return redirect('/')
-
 
 # ─── SỬA GIẢI ────────────────────────────────────────────────────────────────
 @app.route('/sua-giai-dau/<int:giai_id>')
@@ -207,7 +240,7 @@ def chi_tiet_giai(giai_id):
     else:
         return redirect(url_for('login'))
     
-    # ✅ FETCH DỮ LIỆU (THÊM ĐẦY ĐỦ)
+    # ✅ THÊM: FETCH DỮ LIỆU & RENDER
     giai_raw = TournamentModel.get_details(giai_id)
     if not giai_raw:
         return "Không tìm thấy giải!", 404
@@ -235,7 +268,7 @@ def vdv_dashboard():
     
     vdv_id = session['user']['id']
     
-    # ✅ SỬA: Thứ tự cột KHỚP với TournamentModel.get_details()
+    # ✅ SỬA: SELECT thứ tự cột KHỚP với TournamentModel.get_details()
     conn = psycopg2.connect(**DB_CONFIG)
     cursor = conn.cursor()
     cursor.execute("""
@@ -267,7 +300,7 @@ def vdv_dashboard():
     
     vdv_giai = []
     for row in rows:
-        # ✅ Lấy đúng 15 cột (id -> qr_image), cột 16 là so_luong_nguoi
+        # ✅ SỬA: Lấy đúng 15 cột (index 0-14), cột 15 là so_luong_nguoi
         giai_raw = tuple(row[:15])
         players_raw = PlayerModel.get_all_by_tournament(row[0])
         giai_detail = FinanceService.tinh_toan_dong_tien(giai_raw, players_raw)
