@@ -113,6 +113,44 @@ def xoa_giai_dau(giai_id):
     except Exception as e:
         LogHelper.log_error(f"Error deleting tournament {giai_id}: {str(e)}")
         return f"❌ Error: {str(e)}", 500
+        
+@app.route('/sua-giai-dau/<int:giai_id>', methods=['GET', 'POST'])
+@admin_required
+def sua_giai_dau(giai_id):
+    """Sửa giải đấu"""
+    conn = psycopg2.connect(**DB_CONFIG)
+    cursor = conn.cursor()
+    
+    if request.method == 'GET':
+        giai_raw = TournamentModel.get_details(giai_id)
+        cursor.close()
+        conn.close()
+        if not giai_raw:
+            return "Không tìm thấy", 404
+        return render_template('sua_giai.html', giai=giai_raw)
+    
+    # POST - Update
+    cursor.execute("""
+        UPDATE giai_dau SET
+            ten_giai_dau=%s, so_luong_san=%s, dia_diem=%s,
+            chi_phi_san_bai=%s, chi_phi_nuoc_noi=%s,
+            chi_phi_giai_thuong=%s, chi_phi_khac=%s,
+            ty_le_giai_1=%s, ty_le_giai_2=%s, ty_le_giai_3=%s,
+            so_nguoi_du_kien=%s
+        WHERE id=%s;
+    """, (
+        request.form['ten_giai_dau'], request.form['so_luong_san'],
+        request.form.get('dia_diem'), request.form.get('chi_phi_san_bai', 0),
+        request.form.get('chi_phi_nuoc_noi', 0), request.form.get('chi_phi_giai_thuong', 0),
+        request.form.get('chi_phi_khac', 0), request.form.get('ty_le_giai_1', 5),
+        request.form.get('ty_le_giai_2', 3), request.form.get('ty_le_giai_3', 2),
+        request.form.get('so_nguoi_du_kien', 10), giai_id
+    ))
+    conn.commit()
+    cursor.close()
+    conn.close()
+    
+    return redirect('/')
 
 @app.route('/giai-dau/<int:giai_id>')
 @login_required
@@ -169,7 +207,7 @@ def chi_tiet_giai(giai_id):
         
         LogHelper.log_success(f"Tournament {giai_id} details loaded ({len(players_raw)} players, {len(matches)} matches)")
         
-        return render_template('chi_tiet.html', giai=giai_detail, players=players_raw, 
+        return render_template('chi_tiet.html', giai=giai_detail, enumerate=enumerate, players=players_raw, 
                               matches=matches, xep_hang=xep_hang)
     
     except Exception as e:
