@@ -9,7 +9,7 @@
 <body class="bg-light">
     <nav class="navbar navbar-dark bg-dark mb-4">
         <div class="container">
-            <span class="navbar-brand mb-0 h1">⚙️ Cài Đặt Admin</span>
+            <span class="navbar-brand mb-0 h1">⚙️ CÀI ĐẶT ADMIN</span>
             <div>
                 <a href="/" class="btn btn-sm btn-outline-light">⬅️ Quay lại</a>
                 <a href="/dang-xuat" class="btn btn-sm btn-outline-danger">🚪 Đăng xuất</a>
@@ -17,45 +17,46 @@
         </div>
     </nav>
 
-    <div class="container mt-5" style="max-width: 500px;">
-        <div class="card shadow">
-            <div class="card-header bg-primary text-white fw-bold">➕ Tạo Tài Khoản Admin Mới</div>
+    <div class="container mt-4" style="max-width: 600px;">
+        {% if success %}
+        <div class="alert alert-success alert-dismissible fade show">
+            ✅ {{ success }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+        {% endif %}
+
+        {% if error %}
+        <div class="alert alert-danger alert-dismissible fade show">
+            ❌ {{ error }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+        {% endif %}
+
+        <div class="card shadow-sm">
+            <div class="card-header bg-primary text-white fw-bold">🔐 TẠO TÀI KHOẢN ADMIN MỚI</div>
             <div class="card-body">
-                {% if success %}
-                <div class="alert alert-success alert-dismissible fade show" role="alert">
-                    ✅ {{ success }}
-                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                </div>
-                {% endif %}
-
-                {% if error %}
-                <div class="alert alert-danger alert-dismissible fade show" role="alert">
-                    ❌ {{ error }}
-                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                </div>
-                {% endif %}
-
                 <form action="/tao-admin" method="POST">
                     <div class="mb-3">
-                        <label class="form-label fw-bold">📧 Email Admin</label>
-                        <input type="email" name="email" class="form-control" required>
+                        <label class="form-label fw-bold">📧 Email *</label>
+                        <input type="email" class="form-control" name="email" required>
                     </div>
+
                     <div class="mb-3">
-                        <label class="form-label fw-bold">🔐 Mật khẩu</label>
-                        <input type="password" name="password" class="form-control" required>
+                        <label class="form-label fw-bold">🔐 Mật Khẩu *</label>
+                        <input type="password" class="form-control" name="password" required minlength="6">
                         <small class="text-muted">Tối thiểu 6 ký tự</small>
                     </div>
+
                     <div class="mb-3">
-                        <label class="form-label fw-bold">🔐 Xác nhận mật khẩu</label>
-                        <input type="password" name="confirm_password" class="form-control" required>
+                        <label class="form-label fw-bold">🔐 Nhập Lại Mật Khẩu *</label>
+                        <input type="password" class="form-control" name="confirm_password" required>
                     </div>
-                    <button type="submit" class="btn btn-primary w-100 fw-bold">✅ Tạo Admin</button>
+
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-success btn-lg fw-bold">✅ TẠO ADMIN</button>
+                    </div>
                 </form>
             </div>
-        </div>
-
-        <div class="mt-4">
-            <a href="/" class="btn btn-secondary w-100">Quay lại Trang Chủ</a>
         </div>
     </div>
 
