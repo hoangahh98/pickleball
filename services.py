@@ -20,9 +20,9 @@ class FinanceService:
         tong_tien_thuc_thu = 0
         tong_tien_donate = 0
         
+        # FIX: Đúng unpacking tuple - 7 phần tử: id, giai_dau_id, ten, trinh_do, tien, ghi_chu, email
         for p in players_raw:
-            # FIX lỗi cú pháp unpacking tuple tại đây
-            p_id, giai_dau_id_check, ten_p, trinh, da_dong, ghi_chu, email = p
+            p_id, giai_id_check, ten_p, trinh, da_dong, ghi_chu, email = p
             da_dong = da_dong or 0
             chenh_lech = da_dong - chi_phi_moi_nguoi
             
@@ -32,9 +32,10 @@ class FinanceService:
             tong_tien_thuc_thu += da_dong
             nguoi_choi_list.append({
                 "id": p_id, "ten": ten_p, "trinh_do": trinh,
-                "tien_dong": da_dong, "chenh_lech": chenh_lech, "ghi_chu": ghi_chu, "email": email
+                "tien_dong": da_dong, "chenh_lech": chenh_lech, "ghi_chu": ghi_chu
             })
             
+        # Quỹ thưởng = tổng tiền thực thu - chi phí vận hành (sân + nước + khác)
         cp_van_hanh = cp_san + cp_nuoc + cp_khac
         quy_giai_thuong_thuc_te = max(0, tong_tien_thuc_thu - cp_van_hanh)
         quy_giai_thuong_moi = quy_giai_thuong_thuc_te
@@ -70,7 +71,6 @@ class MatchSchedulerService:
         list_C = [p for p in players_raw if p[3] == 'C']
         list_D = [p for p in players_raw if p[3] == 'D']
 
-        # Shuffle ngẫu nhiên từng nhóm
         random.shuffle(list_A)
         random.shuffle(list_B)
         random.shuffle(list_C)
@@ -80,16 +80,13 @@ class MatchSchedulerService:
         teams = []
 
         if 'A' in trinh_do_hien_co and 'D' in trinh_do_hien_co:
-            # 4 trình độ: A+D, B+C
             while list_A and list_D:
                 teams.append(f"{list_A.pop()[2]} + {list_D.pop()[2]}")
             while list_B and list_C:
                 teams.append(f"{list_B.pop()[2]} + {list_C.pop()[2]}")
-            # Dư: ghép theo cặp còn lại
             con_lai = list_A + list_B + list_C + list_D
 
         elif 'A' in trinh_do_hien_co and 'C' in trinh_do_hien_co and 'D' not in trinh_do_hien_co:
-            # 3 trình độ A+B+C: A+C, B+B
             while list_A and list_C:
                 teams.append(f"{list_A.pop()[2]} + {list_C.pop()[2]}")
             while len(list_B) >= 2:
@@ -97,7 +94,6 @@ class MatchSchedulerService:
             con_lai = list_A + list_B + list_C
 
         elif len(trinh_do_hien_co) == 2:
-            # 2 trình độ: ghép chéo
             sorted_keys = sorted(trinh_do_hien_co)
             g1 = [p for p in players_raw if p[3] == sorted_keys[0]]
             g2 = [p for p in players_raw if p[3] == sorted_keys[1]]
@@ -110,7 +106,6 @@ class MatchSchedulerService:
         else:
             con_lai = list_A + list_B + list_C + list_D
 
-        # Xử lý người dư
         while len(con_lai) >= 2:
             teams.append(f"{con_lai.pop()[2]} + {con_lai.pop()[2]}")
         if con_lai:
@@ -120,12 +115,7 @@ class MatchSchedulerService:
 
     @staticmethod
     def generate_round_robin(teams, so_san=1):
-        """
-        Tạo lịch vòng tròn phân sân.
-        - Mỗi vòng: các trận thi đấu song song trên các sân
-        - Xoay vòng để tránh đánh liên tục (ai vừa đánh vòng này thì vòng sau nghỉ)
-        Trả về list dict: {vong, san, doi_a, doi_b}
-        """
+        """Tạo lịch vòng tròn phân sân"""
         teams = list(teams)
         if len(teams) % 2 == 1:
             teams.append("BYE")
@@ -142,10 +132,9 @@ class MatchSchedulerService:
                         "vong": vong + 1,
                         "doi_a": home,
                         "doi_b": away,
-                        "san": (len(vong_matches) % so_san) + 1  # phân sân tuần tự
+                        "san": (len(vong_matches) % so_san) + 1
                     })
             all_matches.extend(vong_matches)
-            # Xoay vòng: giữ nguyên phần tử 0, xoay phần còn lại
             teams = [teams[0]] + [teams[-1]] + teams[1:-1]
 
         return all_matches

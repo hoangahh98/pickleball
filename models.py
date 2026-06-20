@@ -59,10 +59,7 @@ class MatchModel:
 
     @staticmethod
     def save_matches(giai_id, matches):
-        """
-        matches: list dict {vong, san, doi_a, doi_b}
-        Lưu vào DB: san_so_may = số sân, dùng ghi_chu tạm để lưu vòng
-        """
+        """matches: list dict {vong, san, doi_a, doi_b}"""
         conn = psycopg2.connect(**DB_CONFIG)
         cursor = conn.cursor()
         for m in matches:
@@ -114,7 +111,7 @@ class MatchModel:
         cursor.close()
         conn.close()
 
-        bang = {}  # ten_doi -> {thang, thua, hieu_so, diem}
+        bang = {}
         for doi_a, doi_b, d_a, d_b in rows:
             for doi in [doi_a, doi_b]:
                 if doi not in bang:
@@ -136,7 +133,6 @@ class MatchModel:
                 bang[doi_b]["diem"] += 1
                 bang[doi_a]["thua"] += 1
 
-        # Sắp xếp: điểm giảm, hiệu số giảm
         xep_hang = sorted(bang.values(), key=lambda x: (-x["diem"], -x["hieu_so"]))
         return xep_hang
 
@@ -167,8 +163,7 @@ class MatchModel:
 
     @staticmethod
     def save_knockout_config(giai_id, so_bang, so_doi_di_tiep):
-        """Lưu cấu hình knockout (tạm thời trong memory hoặc log)"""
-        # Có thể lưu vào bảng giai_dau nếu cần
+        """Lưu cấu hình knockout"""
         pass
 
     @staticmethod
@@ -186,19 +181,24 @@ class MatchModel:
         
     @staticmethod
     def update_player_name_in_matches(giai_id, old_name, new_name):
-        """Tự động cập nhật lại tên VĐV cũ thành tên mới trong chuỗi ghép đôi (Ví dụ: 'A + B' thành 'A_Mới + B')"""
+        """FIX: Cập nhật tên VĐV ở lịch thi đấu khi sửa tên"""
         conn = psycopg2.connect(**DB_CONFIG)
         cursor = conn.cursor()
-        try:
-            cursor.execute("""
-                UPDATE tran_dau 
-                SET doi_a = REPLACE(doi_a, %s, %s),
-                    doi_b = REPLACE(doi_b, %s, %s)
-                WHERE giai_dau_id = %s;
-            """, (old_name, new_name, old_name, new_name, giai_id))
-            conn.commit()
-        except Exception as e:
-            print(f"Lỗi cập nhật tên trận đấu: {str(e)}")
-        finally:
-            cursor.close()
-            conn.close()
+        
+        # Update doi_a
+        cursor.execute("""
+            UPDATE tran_dau 
+            SET doi_a = %s 
+            WHERE giai_dau_id = %s AND doi_a = %s;
+        """, (new_name, giai_id, old_name))
+        
+        # Update doi_b
+        cursor.execute("""
+            UPDATE tran_dau 
+            SET doi_b = %s 
+            WHERE giai_dau_id = %s AND doi_b = %s;
+        """, (new_name, giai_id, old_name))
+        
+        conn.commit()
+        cursor.close()
+        conn.close()
