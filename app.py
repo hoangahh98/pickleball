@@ -41,34 +41,30 @@ def save_upload_file(file_obj):
         return None
         
 def save_upload_file_to_github(file):
-    """Upload file len GitHub"""
-    filename = secure_filename(f"{int(time.time())}_{file.filename}")
+    """
+    Upload file lên local storage (an toàn hơn GitHub)
+    Trả về path để sử dụng trong HTML
+    """
+    if not file or file.filename == '':
+        return None
     
-    # Doc file
-    file_content = file.read()
-    import base64
-    base64_content = base64.b64encode(file_content).decode()
+    if not allowed_file(file.filename):
+        return None
     
-    # Push len GitHub
-    import requests
-    url = f"https://api.github.com/repos/hoangahh98/pickleball/contents/uploads/{filename}"
+    try:
+        # Tạo tên file an toàn
+        filename = secure_filename(f"{int(time.time())}_{file.filename}")
+        
+        # Lưu vào thư mục uploads
+        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        file.save(filepath)
+        
+        # Trả về path để sử dụng trong HTML
+        return f"/static/uploads/{filename}"
     
-    payload = {
-        "message": f"Upload {filename}",
-        "content": base64_content,
-        "branch": "main"
-    }
-    
-    headers = {
-        "Authorization": f"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",
-        "Content-Type": "application/json"
-    }
-    
-    resp = requests.put(url, json=payload, headers=headers)
-    if resp.status_code == 201:
-        # GitHub raw content link
-        return f"https://raw.githubusercontent.com/hoangahh98/pickleball/main/uploads/{filename}"
-    return None
+    except Exception as e:
+        print(f"❌ Upload error: {str(e)}")
+        return None
 
 # ─── TRANG CHỦ ───────────────────────────────────────────────────────────────
 @app.route('/')
@@ -240,7 +236,7 @@ def chi_tiet_giai(giai_id):
     else:
         return redirect(url_for('login'))
     
-    # ✅ THÊM: FETCH DỮ LIỆU & RENDER
+    # FETCH DỮ LIỆU
     giai_raw = TournamentModel.get_details(giai_id)
     if not giai_raw:
         return "Không tìm thấy giải!", 404
@@ -248,8 +244,31 @@ def chi_tiet_giai(giai_id):
     players_raw = PlayerModel.get_all_by_tournament(giai_id)
     matches = MatchModel.get_all_by_tournament(giai_id)
     
+    # Tính toán tài chính
     giai_detail = FinanceService.tinh_toan_dong_tien(giai_raw, players_raw)
+    
+    # ✅ TÍNH TOP 3 DONATE (Mạnh thường quân)
+    top_3_donate = []
+    if giai_detail.get('nguoi_choi_list'):
+        # Sắp xếp theo số tiền đóng (nhiều nhất trước), lấy top 3
+        sorted_players = sorted(
+            giai_detail['nguoi_choi_list'],
+            key=lambda x: x['tien_dong'],
+            reverse=True
+        )
+        top_3_donate = [(p['ten'], p['tien_dong']) for p in sorted_players[:3]]
+    
+    giai_detail['top_3_donate'] = top_3_donate
+    
+    # ✅ TÍNH BẢNG XẾP HẠNG
     xep_hang = MatchModel.get_bang_xep_hang_by_matches(matches) if matches else []
+    giai_detail['bang_xep_hang'] = xep_hang
+    
+    # ✅ THÊM MATCHES
+    giai_detail['matches'] = matches
+    
+    # ✅ THÊM PLAYERS (với email)
+    giai_detail['players'] = players_raw
     
     return render_template('chi_tiet.html',
         giai=giai_detail,
