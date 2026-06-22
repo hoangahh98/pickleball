@@ -1,7 +1,7 @@
 import json
 import psycopg2
 from flask import has_request_context, request
-from config import DB_CONFIG
+from config import DB_CONFIG, DB_CONFIG_ERROR
 
 
 class DBLogger:
@@ -163,6 +163,8 @@ class DBLogger:
     @staticmethod
     def _safe_console_log(error, level, message):
         try:
+            if DB_CONFIG_ERROR:
+                print(f"DB Config Error: {ascii(DB_CONFIG_ERROR)}")
             print(f"DB Log Error: {ascii(str(error))}")
             print(f"Original log: [{level}] {ascii(str(message))}")
         except Exception:
