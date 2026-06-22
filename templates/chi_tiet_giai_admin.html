@@ -648,6 +648,11 @@ BTC</textarea>
                         <label class="btn btn-outline-primary server-order-btn" for="scoreOrder2">2</label>
                     </div>
                 </div>
+                <div class="text-center mt-3">
+                    <button type="button" id="enableAudioBtn" class="btn btn-outline-secondary btn-sm">
+                        Bật loa
+                    </button>
+                </div>
                 <div id="scoreSaveStatus" class="text-center small text-muted mt-3">Chưa thay đổi</div>
             </div>
         </div>
@@ -674,11 +679,13 @@ const scoreInputB = document.getElementById('scoreInputB');
 const scoreOrder1 = document.getElementById('scoreOrder1');
 const scoreOrder2 = document.getElementById('scoreOrder2');
 const scoreSaveStatus = document.getElementById('scoreSaveStatus');
+const enableAudioBtn = document.getElementById('enableAudioBtn');
 const SCORE_TOUCH = {{ giai.diem_cham or 11 }};
 const SCORE_MAX = {{ giai.diem_toi_da or 15 }};
 let activeMatchCard = null;
 let saveScoreTimer = null;
 let scoreAudio = null;
+const ttsAudioCache = new Map();
 
 function normalizeScoreValue(value) {
     const trimmed = String(value ?? '').trim();
@@ -727,6 +734,7 @@ function openScoreModal(card) {
     (card.dataset.order === '1' ? scoreOrder1 : scoreOrder2).checked = true;
     setSaveStatus('Chưa thay đổi');
     scoreModal.show();
+    prefetchCurrentScoreTts();
     setTimeout(() => scoreInputA.focus(), 150);
 }
 
@@ -736,6 +744,7 @@ function scheduleScoreSave() {
     scoreInputB.max = maxAllowedScore(scoreInputA.value);
     window.clearTimeout(saveScoreTimer);
     setSaveStatus('Đang chờ tự lưu...', 'text-primary');
+    prefetchCurrentScoreTts();
     saveScoreTimer = window.setTimeout(saveActiveScore, 800);
 }
 
@@ -762,17 +771,48 @@ function readVietnameseNumber(value) {
 function speakCurrentScore() {
     if (!activeMatchCard) return;
 
-    const diemA = normalizeScoreValue(scoreInputA.value) || 0;
-    const diemB = normalizeScoreValue(scoreInputB.value) || 0;
-    const thuTuDanh = document.querySelector('input[name="scoreOrder"]:checked')?.value || '2';
-    const text = `${readVietnameseNumber(diemA)}, ${readVietnameseNumber(diemB)}, ${readVietnameseNumber(thuTuDanh)}`;
-
+    const text = getCurrentScoreSpeechText();
     speakWithVietnameseTts(text).catch(() => {
-        setSaveStatus('Không phát được giọng tiếng Việt', 'text-warning');
+        setSaveStatus('Bấm Bật loa rồi thử lại', 'text-warning');
     });
 }
 
-function speakWithVietnameseTts(text) {
+function getCurrentScoreSpeechText() {
+    const diemA = normalizeScoreValue(scoreInputA.value) || 0;
+    const diemB = normalizeScoreValue(scoreInputB.value) || 0;
+    const thuTuDanh = document.querySelector('input[name="scoreOrder"]:checked')?.value || '2';
+    return `${readVietnameseNumber(diemA)}, ${readVietnameseNumber(diemB)}, ${readVietnameseNumber(thuTuDanh)}`;
+}
+
+async function getVietnameseTtsUrl(text) {
+    if (ttsAudioCache.has(text)) {
+        return ttsAudioCache.get(text);
+    }
+
+    const response = await fetch(`/tts/vi?text=${encodeURIComponent(text)}`, {
+        cache: 'force-cache'
+    });
+    if (!response.ok) {
+        throw new Error('TTS unavailable');
+    }
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    ttsAudioCache.set(text, url);
+
+    if (ttsAudioCache.size > 30) {
+        const first = ttsAudioCache.entries().next().value;
+        URL.revokeObjectURL(first[1]);
+        ttsAudioCache.delete(first[0]);
+    }
+    return url;
+}
+
+function prefetchCurrentScoreTts() {
+    if (!activeMatchCard) return;
+    getVietnameseTtsUrl(getCurrentScoreSpeechText()).catch(() => {});
+}
+
+async function speakWithVietnameseTts(text) {
     if (scoreAudio) {
         scoreAudio.pause();
         scoreAudio = null;
@@ -781,8 +821,10 @@ function speakWithVietnameseTts(text) {
         window.speechSynthesis.cancel();
     }
 
+    const audioUrl = await getVietnameseTtsUrl(text);
+
     return new Promise((resolve, reject) => {
-        scoreAudio = new Audio(`/tts/vi?text=${encodeURIComponent(text)}`);
+        scoreAudio = new Audio(audioUrl);
         scoreAudio.onended = resolve;
         scoreAudio.onerror = reject;
         const playPromise = scoreAudio.play();
@@ -869,6 +911,12 @@ document.querySelectorAll('.tran-card[data-match-id]').forEach((card) => {
     input.addEventListener('input', scheduleScoreSave);
     input.addEventListener('change', scheduleScoreSave);
 });
+
+if (enableAudioBtn) {
+    enableAudioBtn.addEventListener('click', () => {
+        speakCurrentScore();
+    });
+}
 
 const playerMultiSelect = document.getElementById('playerMultiSelect');
 const playerSelectHint = document.getElementById('playerSelectHint');
