@@ -141,7 +141,6 @@
 
                         <!-- Form thêm VĐV (hoặc thông báo đủ chỗ) -->
                         {% set registered_ids = registrations|map(attribute=1)|list %}
-                        {% set unregistered = giai.all_vdv|selectattr(0, 'not in', registered_ids)|list %}
                         {% if giai.so_nguoi_du_kien and registrations|length >= giai.so_nguoi_du_kien %}
                             <div class="alert alert-danger py-2 mb-0 small">
                                 🚫 <strong>Đã đủ người!</strong> Giải đạt {{ registrations|length }}/{{ giai.so_nguoi_du_kien }} VĐV.
