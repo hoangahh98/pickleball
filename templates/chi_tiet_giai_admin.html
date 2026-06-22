@@ -274,16 +274,18 @@ BTC</textarea>
                                 <a href="/sua-giai-dau/{{ giai.id }}" class="alert-link">Tăng giới hạn?</a>
                             </div>
                         {% else %}
-                            <form action="/giai-dau/{{ giai.id }}/dang-ky" method="POST" class="d-flex gap-1 mt-2">
-                                <select class="form-select form-select-sm" name="van_dong_vien_id" required>
-                                    <option value="">-- Chọn VĐV để thêm --</option>
+                            <form action="/giai-dau/{{ giai.id }}/dang-ky" method="POST" class="mt-2">
+                                <select class="form-select form-select-sm" name="van_dong_vien_ids" multiple size="6" required>
                                     {% for vdv in giai.all_vdv %}
                                         {% if vdv[0] not in registered_ids %}
                                         <option value="{{ vdv[0] }}">{{ vdv[1] }} ({{ vdv[2] }})</option>
                                         {% endif %}
                                     {% endfor %}
                                 </select>
-                                <button type="submit" class="btn btn-success btn-sm text-nowrap">➕ Thêm</button>
+                                <div class="d-flex gap-2 mt-2">
+                                    <button type="submit" class="btn btn-success btn-sm text-nowrap">💾 Lưu đã chọn</button>
+                                    <a href="/van-dong-vien/them" class="btn btn-outline-success btn-sm text-nowrap">➕ Thêm VĐV mới</a>
+                                </div>
                             </form>
                             {% if not giai.all_vdv or (giai.all_vdv|length == registered_ids|length) %}
                             <div class="small text-muted mt-1">
@@ -670,13 +672,38 @@ const scoreInputB = document.getElementById('scoreInputB');
 const scoreOrder1 = document.getElementById('scoreOrder1');
 const scoreOrder2 = document.getElementById('scoreOrder2');
 const scoreSaveStatus = document.getElementById('scoreSaveStatus');
+const SCORE_TOUCH = {{ giai.diem_cham or 11 }};
+const SCORE_MAX = {{ giai.diem_toi_da or 15 }};
 let activeMatchCard = null;
 let saveScoreTimer = null;
 let speakScoreTimer = null;
+let vietnameseVoice = null;
 
 function normalizeScoreValue(value) {
     const trimmed = String(value ?? '').trim();
     return trimmed === '' ? '' : Math.max(0, Math.min(99, Number.parseInt(trimmed, 10) || 0));
+}
+
+function maxAllowedScore(opponentScore) {
+    const opponent = Number.parseInt(opponentScore, 10) || 0;
+    if (opponent >= SCORE_TOUCH - 1) {
+        return Math.min(opponent + 2, SCORE_MAX);
+    }
+    return Math.min(SCORE_TOUCH, SCORE_MAX);
+}
+
+function applyScoreLimit(changedInput) {
+    const isInputA = changedInput === scoreInputA;
+    const opponentInput = isInputA ? scoreInputB : scoreInputA;
+    const current = normalizeScoreValue(changedInput.value);
+    const opponent = normalizeScoreValue(opponentInput.value);
+    const allowed = maxAllowedScore(opponent);
+
+    changedInput.max = allowed;
+    if (current !== '' && current > allowed) {
+        changedInput.value = allowed;
+        setSaveStatus(`Điểm tối đa hiện tại là ${allowed}`, 'text-warning');
+    }
 }
 
 function formatLiveScore(diemA, diemB, order) {
@@ -694,6 +721,8 @@ function openScoreModal(card) {
     document.getElementById('scoreTeamB').textContent = card.dataset.teamB.replaceAll(' + ', '\n');
     scoreInputA.value = card.dataset.scoreA || '';
     scoreInputB.value = card.dataset.scoreB || '';
+    scoreInputA.max = maxAllowedScore(scoreInputB.value);
+    scoreInputB.max = maxAllowedScore(scoreInputA.value);
     (card.dataset.order === '1' ? scoreOrder1 : scoreOrder2).checked = true;
     setSaveStatus('Chưa thay đổi');
     scoreModal.show();
@@ -702,6 +731,8 @@ function openScoreModal(card) {
 
 function scheduleScoreSave() {
     if (!activeMatchCard) return;
+    scoreInputA.max = maxAllowedScore(scoreInputB.value);
+    scoreInputB.max = maxAllowedScore(scoreInputA.value);
     window.clearTimeout(saveScoreTimer);
     window.clearTimeout(speakScoreTimer);
     setSaveStatus('Đang chờ tự lưu...', 'text-primary');
@@ -729,18 +760,29 @@ function readVietnameseNumber(value) {
     return String(number);
 }
 
+function loadVietnameseVoice() {
+    if (!('speechSynthesis' in window)) return;
+    const voices = window.speechSynthesis.getVoices();
+    vietnameseVoice = voices.find((voice) => voice.lang && voice.lang.toLowerCase().startsWith('vi'))
+        || voices.find((voice) => /vietnam|vietnamese|tiếng việt|viet/i.test(voice.name));
+}
+
 function speakCurrentScore() {
     if (!('speechSynthesis' in window) || !activeMatchCard) return;
 
     const diemA = normalizeScoreValue(scoreInputA.value) || 0;
     const diemB = normalizeScoreValue(scoreInputB.value) || 0;
     const thuTuDanh = document.querySelector('input[name="scoreOrder"]:checked')?.value || '2';
-    const text = `${readVietnameseNumber(diemA)} ${readVietnameseNumber(diemB)} ${readVietnameseNumber(thuTuDanh)}`;
+    const text = `${readVietnameseNumber(diemA)}, ${readVietnameseNumber(diemB)}, ${readVietnameseNumber(thuTuDanh)}`;
 
     window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = 'vi-VN';
-    utterance.rate = 0.95;
+    utterance.rate = 0.82;
+    utterance.pitch = 1.05;
+    if (vietnameseVoice) {
+        utterance.voice = vietnameseVoice;
+    }
     window.speechSynthesis.speak(utterance);
 }
 
@@ -805,10 +847,26 @@ document.querySelectorAll('.tran-card[data-match-id]').forEach((card) => {
     });
 });
 
-[scoreInputA, scoreInputB, scoreOrder1, scoreOrder2].forEach((input) => {
+[scoreInputA, scoreInputB].forEach((input) => {
+    input.addEventListener('input', () => {
+        applyScoreLimit(input);
+        scheduleScoreSave();
+    });
+    input.addEventListener('change', () => {
+        applyScoreLimit(input);
+        scheduleScoreSave();
+    });
+});
+
+[scoreOrder1, scoreOrder2].forEach((input) => {
     input.addEventListener('input', scheduleScoreSave);
     input.addEventListener('change', scheduleScoreSave);
 });
+
+loadVietnameseVoice();
+if ('speechSynthesis' in window) {
+    window.speechSynthesis.onvoiceschanged = loadVietnameseVoice;
+}
 </script>
 </body>
 </html>

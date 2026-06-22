@@ -342,6 +342,16 @@ class MatchModel:
             rules = cursor.fetchone() or (11, 15)
             diem_cham, diem_toi_da = int(rules[0]), int(rules[1])
 
+            def max_allowed(opponent_score):
+                opponent_score = opponent_score or 0
+                if opponent_score >= diem_cham - 1:
+                    return min(opponent_score + 2, diem_toi_da)
+                return min(diem_cham, diem_toi_da)
+
+            if diem_a is not None and diem_b is not None:
+                diem_a = min(diem_a, max_allowed(diem_b))
+                diem_b = min(diem_b, max_allowed(diem_a))
+
             trang_thai = 'Chưa diễn ra'
             if diem_a is not None and diem_b is not None:
                 diem_cao = max(diem_a, diem_b)
@@ -356,7 +366,7 @@ class MatchModel:
                 WHERE id=%s;
             """, (diem_a, diem_b, thu_tu_danh, trang_thai, tran_id))
             conn.commit()
-            return trang_thai
+            return trang_thai, diem_a, diem_b
         except Exception as e:
             conn.rollback()
             raise e

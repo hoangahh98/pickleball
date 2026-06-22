@@ -8,7 +8,7 @@ from models import VanDongVienModel, TournamentModel, DangKyGiaiModel, MatchMode
 from services import FinanceService
 from knockout_logic import MatchSchedulerService
 from auth import AuthService, login_required, admin_required
-from config import DB_CONFIG, FLASK_SECRET_KEY, BASE_URL
+from config import DB_CONFIG, FLASK_SECRET_KEY, FLASK_SECRET_KEY_ERROR, BASE_URL
 from logging_service import DBLogger, DBLogViewer
 import psycopg2
 import traceback
@@ -450,6 +450,9 @@ def chi_tiet_giai_admin(giai_id):
         giai_detail['matches'] = matches
         giai_detail['registrations'] = registrations
         giai_detail['all_vdv'] = all_vdv
+        score_rules = TournamentModel.get_score_rules(giai_id)
+        giai_detail['diem_cham'] = int(score_rules[0] or 11)
+        giai_detail['diem_toi_da'] = int(score_rules[1] or 15)
 
         # Build vong_dict: { vong_number: [match_dict, ...] } for the template
         vong_dict = {}
@@ -496,11 +499,19 @@ def dang_ky_vdv(giai_id):
     """Đăng ký VĐV"""
     user = session.get('user', {})
     try:
-        van_dong_vien_id = request.form['van_dong_vien_id']
+        van_dong_vien_ids = request.form.getlist('van_dong_vien_ids')
+        if not van_dong_vien_ids and request.form.get('van_dong_vien_id'):
+            van_dong_vien_ids = [request.form.get('van_dong_vien_id')]
 
         giai_raw = TournamentModel.get_details(giai_id)
         so_nguoi_du_kien = giai_raw[11] if giai_raw and giai_raw[11] else 0
         registrations = DangKyGiaiModel.get_by_tournament(giai_id)
+
+        registered_ids = {str(reg[1]) for reg in registrations}
+        van_dong_vien_ids = [vdv_id for vdv_id in van_dong_vien_ids if vdv_id and vdv_id not in registered_ids]
+
+        if not van_dong_vien_ids:
+            return redirect(f'/giai-dau/{giai_id}/admin')
 
         if so_nguoi_du_kien and len(registrations) >= so_nguoi_du_kien:
             DBLogger.log_warning(
@@ -509,8 +520,14 @@ def dang_ky_vdv(giai_id):
             )
             return redirect(f'/giai-dau/{giai_id}/admin?error=full')
 
-        DangKyGiaiModel.register(van_dong_vien_id, giai_id)
-        DBLogger.log_success(f"VĐV {van_dong_vien_id} registered for tournament {giai_id}", user.get('email'), f'/giai-dau/{giai_id}/dang-ky')
+        if so_nguoi_du_kien:
+            slots_left = max(so_nguoi_du_kien - len(registrations), 0)
+            van_dong_vien_ids = van_dong_vien_ids[:slots_left]
+
+        for van_dong_vien_id in van_dong_vien_ids:
+            DangKyGiaiModel.register(van_dong_vien_id, giai_id)
+
+        DBLogger.log_success(f"{len(van_dong_vien_ids)} VĐV registered for tournament {giai_id}", user.get('email'), f'/giai-dau/{giai_id}/dang-ky')
         return redirect(f'/giai-dau/{giai_id}/admin')
     except Exception as e:
         DBLogger.log_error(f"Error registering VĐV: {str(e)}", user.get('email'), f'/giai-dau/{giai_id}/dang-ky', context=traceback.format_exc())
@@ -647,7 +664,7 @@ def cap_nhat_ty_so(tran_id):
         cursor.close()
         conn.close()
         
-        trang_thai = MatchModel.update_score(tran_id, diem_a, diem_b, thu_tu_danh)
+        trang_thai, diem_a, diem_b = MatchModel.update_score(tran_id, diem_a, diem_b, thu_tu_danh)
         DBLogger.log_success(f"Match {tran_id} score updated: {diem_a}-{diem_b}-{thu_tu_danh}", user.get('email'), f'/tran-dau/{tran_id}/cap-nhat-ty-so')
         if request.is_json or request.headers.get('X-Requested-With') == 'fetch':
             return jsonify({
@@ -672,6 +689,16 @@ def cap_nhat_ty_so(tran_id):
 def login():
     """Đăng nhập"""
     try:
+        if FLASK_SECRET_KEY_ERROR:
+            DBLogger.log_error(
+                FLASK_SECRET_KEY_ERROR,
+                user_email=request.form.get('email'),
+                route='/login',
+                method=request.method,
+                status_code=500,
+            )
+            return render_template('login.html', error=FLASK_SECRET_KEY_ERROR), 500
+
         if request.method == 'GET':
             return render_template('login.html')
         

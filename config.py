@@ -83,7 +83,8 @@ else:
     DB_CONFIG_ERROR = None
 
 # ============ FLASK CONFIG ============
-FLASK_SECRET_KEY = os.environ.get("FLASK_SECRET_KEY")
+FLASK_SECRET_KEY = os.environ.get("FLASK_SECRET_KEY") or os.environ.get("SECRET_KEY")
+FLASK_SECRET_KEY_ERROR = None if FLASK_SECRET_KEY else "Missing Flask secret environment variable: FLASK_SECRET_KEY"
 DEBUG = False  # Set True only when developing locally
 
 # ============ FILE UPLOAD CONFIG ============
