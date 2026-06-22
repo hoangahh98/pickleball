@@ -734,6 +734,7 @@ function openScoreModal(card) {
     (card.dataset.order === '1' ? scoreOrder1 : scoreOrder2).checked = true;
     setSaveStatus('Chưa thay đổi');
     scoreModal.show();
+    preloadScoreNumberAudio();
     prefetchCurrentScoreTts();
     setTimeout(() => scoreInputA.focus(), 150);
 }
@@ -744,8 +745,9 @@ function scheduleScoreSave() {
     scoreInputB.max = maxAllowedScore(scoreInputA.value);
     window.clearTimeout(saveScoreTimer);
     setSaveStatus('Đang chờ tự lưu...', 'text-primary');
+    speakCurrentScore();
     prefetchCurrentScoreTts();
-    saveScoreTimer = window.setTimeout(saveActiveScore, 800);
+    saveScoreTimer = window.setTimeout(saveActiveScore, 650);
 }
 
 function readVietnameseNumber(value) {
@@ -771,8 +773,10 @@ function readVietnameseNumber(value) {
 function speakCurrentScore() {
     if (!activeMatchCard) return;
 
-    const text = getCurrentScoreSpeechText();
-    speakWithVietnameseTts(text).catch(() => {
+    speakScorePartsFast().catch(() => {
+        const text = getCurrentScoreSpeechText();
+        return speakWithVietnameseTts(text);
+    }).catch(() => {
         setSaveStatus('Bấm Bật loa rồi thử lại', 'text-warning');
     });
 }
@@ -782,6 +786,13 @@ function getCurrentScoreSpeechText() {
     const diemB = normalizeScoreValue(scoreInputB.value) || 0;
     const thuTuDanh = document.querySelector('input[name="scoreOrder"]:checked')?.value || '2';
     return `${readVietnameseNumber(diemA)}, ${readVietnameseNumber(diemB)}, ${readVietnameseNumber(thuTuDanh)}`;
+}
+
+function getCurrentScoreParts() {
+    const diemA = normalizeScoreValue(scoreInputA.value) || 0;
+    const diemB = normalizeScoreValue(scoreInputB.value) || 0;
+    const thuTuDanh = document.querySelector('input[name="scoreOrder"]:checked')?.value || '2';
+    return [readVietnameseNumber(diemA), readVietnameseNumber(diemB), readVietnameseNumber(thuTuDanh)];
 }
 
 async function getVietnameseTtsUrl(text) {
@@ -810,6 +821,16 @@ async function getVietnameseTtsUrl(text) {
 function prefetchCurrentScoreTts() {
     if (!activeMatchCard) return;
     getVietnameseTtsUrl(getCurrentScoreSpeechText()).catch(() => {});
+    getCurrentScoreParts().forEach((part) => {
+        getVietnameseTtsUrl(part).catch(() => {});
+    });
+}
+
+function preloadScoreNumberAudio() {
+    const maxPreload = Math.min(SCORE_MAX, 20);
+    for (let i = 0; i <= maxPreload; i += 1) {
+        getVietnameseTtsUrl(readVietnameseNumber(i)).catch(() => {});
+    }
 }
 
 async function speakWithVietnameseTts(text) {
@@ -832,6 +853,27 @@ async function speakWithVietnameseTts(text) {
             playPromise.catch(reject);
         }
     });
+}
+
+async function speakScorePartsFast() {
+    if (scoreAudio) {
+        scoreAudio.pause();
+        scoreAudio = null;
+    }
+
+    const parts = getCurrentScoreParts();
+    for (const part of parts) {
+        const audioUrl = await getVietnameseTtsUrl(part);
+        await new Promise((resolve, reject) => {
+            scoreAudio = new Audio(audioUrl);
+            scoreAudio.onended = resolve;
+            scoreAudio.onerror = reject;
+            const playPromise = scoreAudio.play();
+            if (playPromise && typeof playPromise.catch === 'function') {
+                playPromise.catch(reject);
+            }
+        });
+    }
 }
 
 async function saveActiveScore() {
@@ -878,7 +920,6 @@ async function saveActiveScore() {
             statusBadge.className = `badge ${result.trang_thai === 'Đã xong' ? 'bg-success' : 'bg-secondary'} match-status`;
         }
         setSaveStatus('Đã tự lưu', 'text-success');
-        speakCurrentScore();
     } catch (error) {
         setSaveStatus(error.message, 'text-danger');
     } finally {
