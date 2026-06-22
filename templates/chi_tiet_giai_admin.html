@@ -684,8 +684,8 @@ const SCORE_TOUCH = {{ giai.diem_cham or 11 }};
 const SCORE_MAX = {{ giai.diem_toi_da or 15 }};
 let activeMatchCard = null;
 let saveScoreTimer = null;
-let scoreAudio = null;
-const ttsAudioCache = new Map();
+let previousScoreState = { a: 0, b: 0, order: '2' };
+let vietnameseVoice = null;
 
 function normalizeScoreValue(value) {
     const trimmed = String(value ?? '').trim();
@@ -714,6 +714,27 @@ function applyScoreLimit(changedInput) {
     }
 }
 
+function applySideOutLogic(changedInput) {
+    const order = document.querySelector('input[name="scoreOrder"]:checked')?.value || '2';
+    if (order !== '2') return;
+
+    const isInputA = changedInput === scoreInputA;
+    const currentA = normalizeScoreValue(scoreInputA.value) || 0;
+    const currentB = normalizeScoreValue(scoreInputB.value) || 0;
+    const changedScore = isInputA ? currentA : currentB;
+    const previousScore = isInputA ? previousScoreState.a : previousScoreState.b;
+
+    if (changedScore > previousScore) {
+        if (isInputA) {
+            scoreInputA.value = previousScoreState.a;
+        } else {
+            scoreInputB.value = previousScoreState.b;
+        }
+        scoreOrder1.checked = true;
+        setSaveStatus('Đổi lượt giao: 2 sang 1', 'text-warning');
+    }
+}
+
 function formatLiveScore(diemA, diemB, order) {
     return `${diemA || 0} – ${diemB || 0} - ${order || 2}`;
 }
@@ -732,10 +753,13 @@ function openScoreModal(card) {
     scoreInputA.max = maxAllowedScore(scoreInputB.value);
     scoreInputB.max = maxAllowedScore(scoreInputA.value);
     (card.dataset.order === '1' ? scoreOrder1 : scoreOrder2).checked = true;
+    previousScoreState = {
+        a: normalizeScoreValue(scoreInputA.value) || 0,
+        b: normalizeScoreValue(scoreInputB.value) || 0,
+        order: card.dataset.order || '2'
+    };
     setSaveStatus('Chưa thay đổi');
     scoreModal.show();
-    preloadScoreNumberAudio();
-    prefetchCurrentScoreTts();
     setTimeout(() => scoreInputA.focus(), 150);
 }
 
@@ -746,7 +770,6 @@ function scheduleScoreSave() {
     window.clearTimeout(saveScoreTimer);
     setSaveStatus('Đang chờ tự lưu...', 'text-primary');
     speakCurrentScore();
-    prefetchCurrentScoreTts();
     saveScoreTimer = window.setTimeout(saveActiveScore, 650);
 }
 
@@ -773,12 +796,16 @@ function readVietnameseNumber(value) {
 function speakCurrentScore() {
     if (!activeMatchCard) return;
 
-    speakScorePartsFast().catch(() => {
-        const text = getCurrentScoreSpeechText();
-        return speakWithVietnameseTts(text);
-    }).catch(() => {
-        setSaveStatus('Bấm Bật loa rồi thử lại', 'text-warning');
-    });
+    if (!('speechSynthesis' in window)) return;
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(getCurrentScoreSpeechText());
+    utterance.lang = 'vi-VN';
+    utterance.rate = 0.95;
+    utterance.pitch = 1;
+    if (vietnameseVoice) {
+        utterance.voice = vietnameseVoice;
+    }
+    window.speechSynthesis.speak(utterance);
 }
 
 function getCurrentScoreSpeechText() {
@@ -788,92 +815,12 @@ function getCurrentScoreSpeechText() {
     return `${readVietnameseNumber(diemA)}, ${readVietnameseNumber(diemB)}, ${readVietnameseNumber(thuTuDanh)}`;
 }
 
-function getCurrentScoreParts() {
-    const diemA = normalizeScoreValue(scoreInputA.value) || 0;
-    const diemB = normalizeScoreValue(scoreInputB.value) || 0;
-    const thuTuDanh = document.querySelector('input[name="scoreOrder"]:checked')?.value || '2';
-    return [readVietnameseNumber(diemA), readVietnameseNumber(diemB), readVietnameseNumber(thuTuDanh)];
-}
-
-async function getVietnameseTtsUrl(text) {
-    if (ttsAudioCache.has(text)) {
-        return ttsAudioCache.get(text);
-    }
-
-    const response = await fetch(`/tts/vi?text=${encodeURIComponent(text)}`, {
-        cache: 'force-cache'
-    });
-    if (!response.ok) {
-        throw new Error('TTS unavailable');
-    }
-    const blob = await response.blob();
-    const url = URL.createObjectURL(blob);
-    ttsAudioCache.set(text, url);
-
-    if (ttsAudioCache.size > 30) {
-        const first = ttsAudioCache.entries().next().value;
-        URL.revokeObjectURL(first[1]);
-        ttsAudioCache.delete(first[0]);
-    }
-    return url;
-}
-
-function prefetchCurrentScoreTts() {
-    if (!activeMatchCard) return;
-    getVietnameseTtsUrl(getCurrentScoreSpeechText()).catch(() => {});
-    getCurrentScoreParts().forEach((part) => {
-        getVietnameseTtsUrl(part).catch(() => {});
-    });
-}
-
-function preloadScoreNumberAudio() {
-    const maxPreload = Math.min(SCORE_MAX, 20);
-    for (let i = 0; i <= maxPreload; i += 1) {
-        getVietnameseTtsUrl(readVietnameseNumber(i)).catch(() => {});
-    }
-}
-
-async function speakWithVietnameseTts(text) {
-    if (scoreAudio) {
-        scoreAudio.pause();
-        scoreAudio = null;
-    }
-    if ('speechSynthesis' in window) {
-        window.speechSynthesis.cancel();
-    }
-
-    const audioUrl = await getVietnameseTtsUrl(text);
-
-    return new Promise((resolve, reject) => {
-        scoreAudio = new Audio(audioUrl);
-        scoreAudio.onended = resolve;
-        scoreAudio.onerror = reject;
-        const playPromise = scoreAudio.play();
-        if (playPromise && typeof playPromise.catch === 'function') {
-            playPromise.catch(reject);
-        }
-    });
-}
-
-async function speakScorePartsFast() {
-    if (scoreAudio) {
-        scoreAudio.pause();
-        scoreAudio = null;
-    }
-
-    const parts = getCurrentScoreParts();
-    for (const part of parts) {
-        const audioUrl = await getVietnameseTtsUrl(part);
-        await new Promise((resolve, reject) => {
-            scoreAudio = new Audio(audioUrl);
-            scoreAudio.onended = resolve;
-            scoreAudio.onerror = reject;
-            const playPromise = scoreAudio.play();
-            if (playPromise && typeof playPromise.catch === 'function') {
-                playPromise.catch(reject);
-            }
-        });
-    }
+function loadVietnameseVoice() {
+    if (!('speechSynthesis' in window)) return;
+    const voices = window.speechSynthesis.getVoices();
+    vietnameseVoice = voices.find((voice) => voice.lang && voice.lang.toLowerCase().startsWith('vi'))
+        || voices.find((voice) => /vietnam|vietnamese|tiếng việt|viet/i.test(voice.name))
+        || null;
 }
 
 async function saveActiveScore() {
@@ -909,6 +856,11 @@ async function saveActiveScore() {
         activeMatchCard.dataset.scoreA = result.diem_a ?? '';
         activeMatchCard.dataset.scoreB = result.diem_b ?? '';
         activeMatchCard.dataset.order = result.thu_tu_danh;
+        previousScoreState = {
+            a: normalizeScoreValue(activeMatchCard.dataset.scoreA) || 0,
+            b: normalizeScoreValue(activeMatchCard.dataset.scoreB) || 0,
+            order: String(result.thu_tu_danh || '2')
+        };
         activeMatchCard.classList.toggle('da-xong', result.trang_thai === 'Đã xong');
 
         if (scoreBadge) {
@@ -940,10 +892,12 @@ document.querySelectorAll('.tran-card[data-match-id]').forEach((card) => {
 [scoreInputA, scoreInputB].forEach((input) => {
     input.addEventListener('input', () => {
         applyScoreLimit(input);
+        applySideOutLogic(input);
         scheduleScoreSave();
     });
     input.addEventListener('change', () => {
         applyScoreLimit(input);
+        applySideOutLogic(input);
         scheduleScoreSave();
     });
 });
@@ -957,6 +911,11 @@ if (enableAudioBtn) {
     enableAudioBtn.addEventListener('click', () => {
         speakCurrentScore();
     });
+}
+
+loadVietnameseVoice();
+if ('speechSynthesis' in window) {
+    window.speechSynthesis.onvoiceschanged = loadVietnameseVoice;
 }
 
 const playerMultiSelect = document.getElementById('playerMultiSelect');

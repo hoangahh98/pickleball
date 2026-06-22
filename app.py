@@ -3,7 +3,7 @@ Complete App with Database Logging
 All logs stored in app_logs table
 """
 
-from flask import Flask, render_template, request, redirect, url_for, session, jsonify, g, Response
+from flask import Flask, render_template, request, redirect, url_for, session, jsonify, g
 from models import VanDongVienModel, TournamentModel, DangKyGiaiModel, MatchModel
 from services import FinanceService
 from knockout_logic import MatchSchedulerService
@@ -11,14 +11,12 @@ from auth import AuthService, login_required, admin_required
 from config import DB_CONFIG, FLASK_SECRET_KEY, FLASK_SECRET_KEY_ERROR, BASE_URL
 from logging_service import DBLogger, DBLogViewer
 import psycopg2
-import requests
 import traceback
 import time
 from werkzeug.exceptions import HTTPException
 
 app = Flask(__name__)
 app.secret_key = FLASK_SECRET_KEY
-TTS_CACHE = {}
 
 
 def _safe_request_details():
@@ -50,7 +48,6 @@ def capture_action_start():
 def log_user_action(response):
     skip_action_log = (
         request.endpoint == "static"
-        or request.endpoint == "vietnamese_tts"
         or request.method == "HEAD"
         or request.path in ("/favicon.ico", "/healthz")
     )
@@ -94,56 +91,6 @@ def log_unhandled_exception(error):
     )
     return "❌ Lỗi hệ thống", 500
 
-
-@app.route('/tts/vi')
-@login_required
-def vietnamese_tts():
-    """Proxy Vietnamese TTS audio so the browser does not fall back to English voices."""
-    text = (request.args.get('text') or '').strip()
-    if not text:
-        return "Missing text", 400
-    if len(text) > 120:
-        text = text[:120]
-
-    try:
-        if text in TTS_CACHE:
-            return Response(
-                TTS_CACHE[text],
-                mimetype='audio/mpeg',
-                headers={'Cache-Control': 'public, max-age=86400'}
-            )
-
-        upstream = requests.get(
-            'https://translate.google.com/translate_tts',
-            params={
-                'ie': 'UTF-8',
-                'client': 'tw-ob',
-                'tl': 'vi',
-                'q': text,
-            },
-            headers={
-                'User-Agent': 'Mozilla/5.0',
-                'Referer': 'https://translate.google.com/',
-            },
-            timeout=5,
-        )
-        upstream.raise_for_status()
-        TTS_CACHE[text] = upstream.content
-        if len(TTS_CACHE) > 80:
-            TTS_CACHE.pop(next(iter(TTS_CACHE)))
-        return Response(
-            TTS_CACHE[text],
-            mimetype='audio/mpeg',
-            headers={'Cache-Control': 'public, max-age=86400'}
-        )
-    except Exception as e:
-        DBLogger.log_error(
-            f"Vietnamese TTS error: {str(e)}",
-            session.get('user', {}).get('email'),
-            '/tts/vi',
-            context=traceback.format_exc(),
-        )
-        return "TTS unavailable", 502
 
 # ============ HELPER FUNCTION ============
 

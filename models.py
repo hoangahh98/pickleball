@@ -379,12 +379,12 @@ class MatchModel:
         """Calculate ranking from matches"""
         bang = {}
         for m in matches:
-            if len(m) > 5 and m[5] != 'Đã xong':
-                continue
             doi_a, doi_b, d_a, d_b = m[1], m[2], m[3], m[4]
             for doi in [doi_a, doi_b]:
                 if doi not in bang:
                     bang[doi] = {"ten": doi, "thang": 0, "thua": 0, "hieu_so": 0, "diem": 0, "so_tran": 0}
+            if len(m) > 5 and m[5] != 'Đã xong':
+                continue
             d_a = d_a or 0
             d_b = d_b or 0
             bang[doi_a]["so_tran"] += 1
