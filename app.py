@@ -3,7 +3,7 @@ Complete App with Database Logging
 All logs stored in app_logs table
 """
 
-from flask import Flask, render_template, request, redirect, url_for, session, jsonify
+from flask import Flask, render_template, request, redirect, url_for, session, jsonify, g
 from models import VanDongVienModel, TournamentModel, DangKyGiaiModel, MatchModel
 from services import FinanceService
 from knockout_logic import MatchSchedulerService
@@ -12,9 +12,79 @@ from config import DB_CONFIG, FLASK_SECRET_KEY, BASE_URL
 from logging_service import DBLogger, DBLogViewer
 import psycopg2
 import traceback
+import time
+from werkzeug.exceptions import HTTPException
 
 app = Flask(__name__)
 app.secret_key = FLASK_SECRET_KEY
+
+
+def _safe_request_details():
+    """Return request details for logs without storing passwords/secrets."""
+    details = {
+        "args": request.args.to_dict(flat=False),
+        "form": {},
+        "json": None,
+    }
+    sensitive_keys = {"password", "confirm_password", "token", "secret", "db_password"}
+    for key, value in request.form.items():
+        details["form"][key] = "***" if key.lower() in sensitive_keys else value
+    if request.is_json:
+        payload = request.get_json(silent=True)
+        if isinstance(payload, dict):
+            details["json"] = {
+                key: "***" if key.lower() in sensitive_keys else value
+                for key, value in payload.items()
+            }
+    return details
+
+
+@app.before_request
+def capture_action_start():
+    g.request_started_at = time.time()
+
+
+@app.after_request
+def log_user_action(response):
+    if request.endpoint != "static":
+        user = session.get("user", {})
+        duration_ms = int((time.time() - getattr(g, "request_started_at", time.time())) * 1000)
+        details = _safe_request_details()
+        details["duration_ms"] = duration_ms
+        DBLogger.log_user_action(
+            user_email=user.get("email") or request.form.get("email"),
+            user_role=user.get("role") or request.form.get("role"),
+            action=f"{request.method} {request.path}",
+            route=request.path,
+            endpoint=request.endpoint,
+            method=request.method,
+            status_code=response.status_code,
+            ip_address=request.headers.get("X-Forwarded-For", request.remote_addr),
+            user_agent=request.headers.get("User-Agent"),
+            details=details,
+        )
+    return response
+
+
+@app.errorhandler(Exception)
+def log_unhandled_exception(error):
+    if isinstance(error, HTTPException):
+        return error
+
+    user = session.get("user", {})
+    DBLogger.log_exception(
+        f"Unhandled exception: {str(error)}",
+        error,
+        user_email=user.get("email") or request.form.get("email"),
+        route=request.path,
+        method=request.method,
+        status_code=500,
+        context=traceback.format_exc(),
+        request_path=request.path,
+        ip_address=request.headers.get("X-Forwarded-For", request.remote_addr),
+        user_agent=request.headers.get("User-Agent"),
+    )
+    return "❌ Lỗi hệ thống", 500
 
 # ============ HELPER FUNCTION ============
 
@@ -627,7 +697,18 @@ def login():
         DBLogger.log_warning(f"Failed login attempt: {email}", email, '/login')
         return render_template('login.html', error=error)
     except Exception as e:
-        DBLogger.log_error(f"Error during login: {str(e)}", context=traceback.format_exc())
+        DBLogger.log_exception(
+            f"Login failed with system error: {str(e)}",
+            e,
+            user_email=request.form.get('email'),
+            route='/login',
+            method=request.method,
+            status_code=500,
+            context=traceback.format_exc(),
+            request_path=request.path,
+            ip_address=request.headers.get('X-Forwarded-For', request.remote_addr),
+            user_agent=request.headers.get('User-Agent'),
+        )
         return render_template('login.html', error="Lỗi hệ thống"), 500
 
 @app.route('/dang-xuat')
