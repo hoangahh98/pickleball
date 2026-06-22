@@ -35,6 +35,9 @@
         .tran-card.saving { opacity: .72; }
         .score-pill { font-size: .92rem; min-width: 76px; }
         .live-score-input { max-width: 110px; text-align: center; font-size: 2rem; font-weight: 800; }
+        .live-score-input::-webkit-outer-spin-button,
+        .live-score-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+        .live-score-input[type=number] { -moz-appearance: textfield; appearance: textfield; }
         .score-step-btn { width: 42px; height: 42px; font-size: 1.3rem; font-weight: 800; line-height: 1; }
         .server-order-btn { min-width: 54px; }
         #scoreTeamA, #scoreTeamB { white-space: pre-line; }
@@ -736,6 +739,9 @@ function updateServingHighlight() {
     const serving = document.querySelector('input[name="servingTeam"]:checked')?.value || 'A';
     scoreSideA.classList.toggle('serving-team', serving === 'A');
     scoreSideB.classList.toggle('serving-team', serving === 'B');
+    document.querySelectorAll('[data-score-target]').forEach((btn) => {
+        btn.disabled = btn.dataset.scoreTarget !== serving;
+    });
 }
 
 function selectServingTeam(side, resetOrder = true) {
@@ -749,6 +755,8 @@ function selectServingTeam(side, resetOrder = true) {
 }
 
 function stepScore(side, delta) {
+    const serving = document.querySelector('input[name="servingTeam"]:checked')?.value || 'A';
+    if (side !== serving) return;
     const input = side === 'A' ? scoreInputA : scoreInputB;
     const current = normalizeScoreValue(input.value) || 0;
     input.value = Math.max(0, current + delta);
@@ -893,6 +901,7 @@ async function saveActiveScore() {
             order: String(result.thu_tu_danh || '2'),
             servingTeam: activeMatchCard.dataset.servingTeam
         };
+        updateServingHighlight();
         activeMatchCard.classList.toggle('da-xong', result.trang_thai === 'Đã xong');
 
         if (scoreBadge) {
@@ -925,10 +934,20 @@ document.querySelectorAll('.tran-card[data-match-id]').forEach((card) => {
     input.addEventListener('click', (event) => event.stopPropagation());
     input.addEventListener('focus', (event) => event.stopPropagation());
     input.addEventListener('input', () => {
+        const serving = document.querySelector('input[name="servingTeam"]:checked')?.value || 'A';
+        if ((input === scoreInputA ? 'A' : 'B') !== serving) {
+            input.value = input === scoreInputA ? previousScoreState.a : previousScoreState.b;
+            return;
+        }
         applyScoreLimit(input);
         scheduleScoreSave();
     });
     input.addEventListener('change', () => {
+        const serving = document.querySelector('input[name="servingTeam"]:checked')?.value || 'A';
+        if ((input === scoreInputA ? 'A' : 'B') !== serving) {
+            input.value = input === scoreInputA ? previousScoreState.a : previousScoreState.b;
+            return;
+        }
         applyScoreLimit(input);
         scheduleScoreSave();
     });
