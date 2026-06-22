@@ -107,6 +107,15 @@ def prepare_tournament_detail(giai_raw, registrations):
     
     return FinanceService.tinh_toan_dong_tien(giai_raw, players_for_calc)
 
+
+@app.route('/doc-diem-giao-luu')
+@login_required
+def doc_diem_giao_luu():
+    """Trang doc diem giao luu, chi luu tam tren trinh duyet."""
+    user = session.get('user', {})
+    DBLogger.log_request('GET', '/doc-diem-giao-luu', user.get('email'))
+    return render_template('doc_diem_giao_luu.html', user=user)
+
 # ============ ADMIN ROUTES ============
 
 @app.route('/')
