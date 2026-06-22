@@ -37,6 +37,7 @@
         .live-score-input { max-width: 110px; text-align: center; font-size: 2rem; font-weight: 800; }
         .server-order-btn { min-width: 54px; }
         #scoreTeamA, #scoreTeamB { white-space: pre-line; }
+        .match-status { font-size: .68rem; letter-spacing: 0; }
 
         /* ── BXH ──────────────────────────────────────────── */
         .rank-1 { background: #fff8dc; }
@@ -434,13 +435,12 @@ BTC</textarea>
                                         </div>
                                         <!-- Tỷ số -->
                                         <div class="score-section">
-                                            {% if tran.trang_thai == 'Đã xong' %}
-                                                <span class="badge bg-success px-2 py-1 score-pill" data-match-score="{{ tran.id }}">
-                                                    {{ tran.diem_a }} – {{ tran.diem_b }} - {{ tran.thu_tu_danh or 2 }}
-                                                </span>
-                                            {% else %}
-                                                <span class="vs-badge" data-match-score="{{ tran.id }}">VS</span>
-                                            {% endif %}
+                                            <span class="badge {{ 'bg-success' if tran.trang_thai == 'Đã xong' else 'bg-primary' }} px-2 py-1 score-pill" data-match-score="{{ tran.id }}">
+                                                {{ tran.diem_a if tran.diem_a is not none else 0 }} – {{ tran.diem_b if tran.diem_b is not none else 0 }} - {{ tran.thu_tu_danh or 2 }}
+                                            </span>
+                                            <span class="badge {{ 'bg-success' if tran.trang_thai == 'Đã xong' else 'bg-secondary' }} match-status" data-match-status="{{ tran.id }}">
+                                                {{ 'Đã xong' if tran.trang_thai == 'Đã xong' else 'Đang đánh' }}
+                                            </span>
                                         </div>
                                         <!-- Đội B -->
                                         <div class="team-name text-end">
@@ -672,6 +672,7 @@ const scoreOrder2 = document.getElementById('scoreOrder2');
 const scoreSaveStatus = document.getElementById('scoreSaveStatus');
 let activeMatchCard = null;
 let saveScoreTimer = null;
+let speakScoreTimer = null;
 
 function normalizeScoreValue(value) {
     const trimmed = String(value ?? '').trim();
@@ -679,10 +680,7 @@ function normalizeScoreValue(value) {
 }
 
 function formatLiveScore(diemA, diemB, order) {
-    if (diemA === '' || diemB === '') {
-        return 'VS';
-    }
-    return `${diemA} – ${diemB} - ${order}`;
+    return `${diemA || 0} – ${diemB || 0} - ${order || 2}`;
 }
 
 function setSaveStatus(text, className = 'text-muted') {
@@ -705,8 +703,27 @@ function openScoreModal(card) {
 function scheduleScoreSave() {
     if (!activeMatchCard) return;
     window.clearTimeout(saveScoreTimer);
+    window.clearTimeout(speakScoreTimer);
     setSaveStatus('Đang chờ tự lưu...', 'text-primary');
     saveScoreTimer = window.setTimeout(saveActiveScore, 450);
+    speakScoreTimer = window.setTimeout(speakCurrentScore, 650);
+}
+
+function speakCurrentScore() {
+    if (!('speechSynthesis' in window) || !activeMatchCard) return;
+
+    const diemA = normalizeScoreValue(scoreInputA.value) || 0;
+    const diemB = normalizeScoreValue(scoreInputB.value) || 0;
+    const thuTuDanh = document.querySelector('input[name="scoreOrder"]:checked')?.value || '2';
+    const teamA = activeMatchCard.dataset.teamA.replaceAll(' + ', ' và ');
+    const teamB = activeMatchCard.dataset.teamB.replaceAll(' + ', ' và ');
+    const text = `${teamA} ${diemA}, ${teamB} ${diemB}, lượt ${thuTuDanh}`;
+
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = 'vi-VN';
+    utterance.rate = 0.95;
+    window.speechSynthesis.speak(utterance);
 }
 
 async function saveActiveScore() {
@@ -716,6 +733,7 @@ async function saveActiveScore() {
     const diemB = normalizeScoreValue(scoreInputB.value);
     const thuTuDanh = document.querySelector('input[name="scoreOrder"]:checked')?.value || '2';
     const scoreBadge = document.querySelector(`[data-match-score="${activeMatchCard.dataset.matchId}"]`);
+    const statusBadge = document.querySelector(`[data-match-status="${activeMatchCard.dataset.matchId}"]`);
 
     activeMatchCard.classList.add('saving');
     setSaveStatus('Đang lưu...', 'text-primary');
@@ -745,9 +763,11 @@ async function saveActiveScore() {
 
         if (scoreBadge) {
             scoreBadge.textContent = formatLiveScore(activeMatchCard.dataset.scoreA, activeMatchCard.dataset.scoreB, activeMatchCard.dataset.order);
-            scoreBadge.className = result.trang_thai === 'Đã xong'
-                ? 'badge bg-success px-2 py-1 score-pill'
-                : 'vs-badge';
+            scoreBadge.className = `badge ${result.trang_thai === 'Đã xong' ? 'bg-success' : 'bg-primary'} px-2 py-1 score-pill`;
+        }
+        if (statusBadge) {
+            statusBadge.textContent = result.trang_thai === 'Đã xong' ? 'Đã xong' : 'Đang đánh';
+            statusBadge.className = `badge ${result.trang_thai === 'Đã xong' ? 'bg-success' : 'bg-secondary'} match-status`;
         }
         setSaveStatus('Đã tự lưu', 'text-success');
     } catch (error) {
