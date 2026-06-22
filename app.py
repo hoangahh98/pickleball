@@ -18,6 +18,7 @@ from werkzeug.exceptions import HTTPException
 
 app = Flask(__name__)
 app.secret_key = FLASK_SECRET_KEY
+TTS_CACHE = {}
 
 
 def _safe_request_details():
@@ -47,7 +48,13 @@ def capture_action_start():
 
 @app.after_request
 def log_user_action(response):
-    if request.endpoint != "static":
+    skip_action_log = (
+        request.endpoint == "static"
+        or request.endpoint == "vietnamese_tts"
+        or request.method == "HEAD"
+        or request.path in ("/favicon.ico", "/healthz")
+    )
+    if not skip_action_log:
         user = session.get("user", {})
         duration_ms = int((time.time() - getattr(g, "request_started_at", time.time())) * 1000)
         details = _safe_request_details()
@@ -99,6 +106,13 @@ def vietnamese_tts():
         text = text[:120]
 
     try:
+        if text in TTS_CACHE:
+            return Response(
+                TTS_CACHE[text],
+                mimetype='audio/mpeg',
+                headers={'Cache-Control': 'public, max-age=86400'}
+            )
+
         upstream = requests.get(
             'https://translate.google.com/translate_tts',
             params={
@@ -114,8 +128,11 @@ def vietnamese_tts():
             timeout=5,
         )
         upstream.raise_for_status()
+        TTS_CACHE[text] = upstream.content
+        if len(TTS_CACHE) > 80:
+            TTS_CACHE.pop(next(iter(TTS_CACHE)))
         return Response(
-            upstream.content,
+            TTS_CACHE[text],
             mimetype='audio/mpeg',
             headers={'Cache-Control': 'public, max-age=86400'}
         )
@@ -571,8 +588,8 @@ def dang_ky_vdv(giai_id):
             return redirect(f'/giai-dau/{giai_id}/admin?error=full')
 
         added_count = 0
+        current_count = len(registrations)
         for van_dong_vien_id in van_dong_vien_ids:
-            current_count = len(DangKyGiaiModel.get_by_tournament(giai_id))
             if so_nguoi_du_kien and current_count >= so_nguoi_du_kien:
                 DBLogger.log_warning(
                     f"Registration stopped: tournament {giai_id} reached limit ({current_count}/{so_nguoi_du_kien})",
@@ -581,6 +598,7 @@ def dang_ky_vdv(giai_id):
                 break
             DangKyGiaiModel.register(van_dong_vien_id, giai_id)
             added_count += 1
+            current_count += 1
 
         DBLogger.log_success(f"{added_count} VĐV registered for tournament {giai_id}", user.get('email'), f'/giai-dau/{giai_id}/dang-ky')
         suffix = '?error=full' if added_count < selected_count else ''

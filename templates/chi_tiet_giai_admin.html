@@ -678,7 +678,6 @@ const SCORE_TOUCH = {{ giai.diem_cham or 11 }};
 const SCORE_MAX = {{ giai.diem_toi_da or 15 }};
 let activeMatchCard = null;
 let saveScoreTimer = null;
-let speakScoreTimer = null;
 let scoreAudio = null;
 
 function normalizeScoreValue(value) {
@@ -736,10 +735,8 @@ function scheduleScoreSave() {
     scoreInputA.max = maxAllowedScore(scoreInputB.value);
     scoreInputB.max = maxAllowedScore(scoreInputA.value);
     window.clearTimeout(saveScoreTimer);
-    window.clearTimeout(speakScoreTimer);
     setSaveStatus('Đang chờ tự lưu...', 'text-primary');
-    saveScoreTimer = window.setTimeout(saveActiveScore, 450);
-    speakScoreTimer = window.setTimeout(speakCurrentScore, 650);
+    saveScoreTimer = window.setTimeout(saveActiveScore, 800);
 }
 
 function readVietnameseNumber(value) {
@@ -839,6 +836,7 @@ async function saveActiveScore() {
             statusBadge.className = `badge ${result.trang_thai === 'Đã xong' ? 'bg-success' : 'bg-secondary'} match-status`;
         }
         setSaveStatus('Đã tự lưu', 'text-success');
+        speakCurrentScore();
     } catch (error) {
         setSaveStatus(error.message, 'text-danger');
     } finally {
