@@ -470,7 +470,8 @@ def chi_tiet_giai_admin(giai_id):
                 "id": m[0], "doi_a": m[1], "doi_b": m[2],
                 "diem_a": m[3], "diem_b": m[4],
                 "trang_thai": m[5], "san": m[6] or 1, "vong": vong,
-                "thu_tu_danh": m[8] if len(m) > 8 and m[8] else 2
+                "thu_tu_danh": m[8] if len(m) > 8 and m[8] else 2,
+                "doi_dang_giao": m[9] if len(m) > 9 and m[9] else 'A'
             })
         giai_detail['vong_dict'] = vong_dict
         
@@ -673,6 +674,7 @@ def cap_nhat_ty_so(tran_id):
         diem_a_raw = data.get('diem_a')
         diem_b_raw = data.get('diem_b')
         thu_tu_raw = data.get('thu_tu_danh', 2)
+        doi_dang_giao = data.get('doi_dang_giao', 'A')
 
         diem_a = int(diem_a_raw) if str(diem_a_raw or '').strip() != '' else None
         diem_b = int(diem_b_raw) if str(diem_b_raw or '').strip() != '' else None
@@ -685,8 +687,8 @@ def cap_nhat_ty_so(tran_id):
         cursor.close()
         conn.close()
         
-        trang_thai, diem_a, diem_b = MatchModel.update_score(tran_id, diem_a, diem_b, thu_tu_danh)
-        DBLogger.log_success(f"Match {tran_id} score updated: {diem_a}-{diem_b}-{thu_tu_danh}", user.get('email'), f'/tran-dau/{tran_id}/cap-nhat-ty-so')
+        trang_thai, diem_a, diem_b = MatchModel.update_score(tran_id, diem_a, diem_b, thu_tu_danh, doi_dang_giao)
+        DBLogger.log_success(f"Match {tran_id} score updated: {diem_a}-{diem_b}-{thu_tu_danh}-{doi_dang_giao}", user.get('email'), f'/tran-dau/{tran_id}/cap-nhat-ty-so')
         if request.is_json or request.headers.get('X-Requested-With') == 'fetch':
             return jsonify({
                 'success': True,
@@ -695,6 +697,7 @@ def cap_nhat_ty_so(tran_id):
                 'diem_a': diem_a,
                 'diem_b': diem_b,
                 'thu_tu_danh': thu_tu_danh,
+                'doi_dang_giao': doi_dang_giao,
                 'trang_thai': trang_thai
             })
         return redirect(f'/giai-dau/{giai_id}/admin')
@@ -879,7 +882,8 @@ def chi_tiet_giai_vdv(giai_id):
                 "id": m[0], "doi_a": m[1], "doi_b": m[2],
                 "diem_a": m[3], "diem_b": m[4],
                 "trang_thai": m[5], "san": m[6] or 1, "vong": vong,
-                "thu_tu_danh": m[8] if len(m) > 8 and m[8] else 2
+                "thu_tu_danh": m[8] if len(m) > 8 and m[8] else 2,
+                "doi_dang_giao": m[9] if len(m) > 9 and m[9] else 'A'
             })
         giai_detail['vong_dict'] = vong_dict
 

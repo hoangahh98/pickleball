@@ -32,6 +32,7 @@
         .match-grid { display: grid; grid-template-columns: 1fr auto 1fr;
                       align-items: center; gap: 8px; }
         .score-section { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+        .serving-team { outline: 2px solid #ffc107; outline-offset: 3px; border-radius: 6px; background: #fff8dc; }
 
         /* ── BXH ──────────────────────────────── */
         .rank-1 { background: #fff8dc; }
@@ -239,7 +240,7 @@
                                 {% for tran in tran_san %}
                                 <div class="tran-card rounded p-2 mb-2 {{ 'da-xong' if tran.trang_thai == 'Đã xong' else '' }}">
                                     <div class="match-grid">
-                                        <div class="team-name">
+                                        <div class="team-name {{ 'serving-team' if (tran.doi_dang_giao or 'A') == 'A' else '' }}">
                                             {% for p in tran.doi_a.split(' + ') %}<span>{{ p }}</span>{% endfor %}
                                         </div>
                                         <div class="score-section">
@@ -251,7 +252,7 @@
                                                 <span class="vs-badge">VS</span>
                                             {% endif %}
                                         </div>
-                                        <div class="team-name text-end">
+                                        <div class="team-name text-end {{ 'serving-team' if (tran.doi_dang_giao or 'A') == 'B' else '' }}">
                                             {% for p in tran.doi_b.split(' + ') %}<span>{{ p }}</span>{% endfor %}
                                         </div>
                                     </div>

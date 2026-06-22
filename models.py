@@ -264,6 +264,8 @@ class MatchModel:
             cursor.execute("""
                 ALTER TABLE tran_dau
                 ADD COLUMN IF NOT EXISTS thu_tu_danh INTEGER DEFAULT 2;
+                ALTER TABLE tran_dau
+                ADD COLUMN IF NOT EXISTS doi_dang_giao VARCHAR(1) DEFAULT 'A';
             """)
             conn.commit()
         except Exception as e:
@@ -281,7 +283,7 @@ class MatchModel:
         cursor = conn.cursor()
         cursor.execute("""
             SELECT id, doi_a, doi_b, diem_doi_a, diem_doi_b, trang_thai, san_so_may, vong_dau,
-                   COALESCE(thu_tu_danh, 2)
+                   COALESCE(thu_tu_danh, 2), COALESCE(doi_dang_giao, 'A')
             FROM tran_dau WHERE giai_dau_id = %s
             ORDER BY vong_dau ASC, san_so_may ASC, id ASC;
         """, (giai_id,))
@@ -326,7 +328,7 @@ class MatchModel:
             conn.close()
     
     @staticmethod
-    def update_score(tran_id, diem_a, diem_b, thu_tu_danh=2):
+    def update_score(tran_id, diem_a, diem_b, thu_tu_danh=2, doi_dang_giao='A'):
         """Update match score"""
         MatchModel.ensure_score_order_column()
         TournamentModel.ensure_score_rule_columns()
@@ -360,11 +362,12 @@ class MatchModel:
                     trang_thai = 'Đã xong'
 
             thu_tu_danh = int(thu_tu_danh) if thu_tu_danh in (1, 2, '1', '2') else 2
+            doi_dang_giao = doi_dang_giao if doi_dang_giao in ('A', 'B') else 'A'
             cursor.execute("""
                 UPDATE tran_dau
-                SET diem_doi_a=%s, diem_doi_b=%s, thu_tu_danh=%s, trang_thai=%s
+                SET diem_doi_a=%s, diem_doi_b=%s, thu_tu_danh=%s, doi_dang_giao=%s, trang_thai=%s
                 WHERE id=%s;
-            """, (diem_a, diem_b, thu_tu_danh, trang_thai, tran_id))
+            """, (diem_a, diem_b, thu_tu_danh, doi_dang_giao, trang_thai, tran_id))
             conn.commit()
             return trang_thai, diem_a, diem_b
         except Exception as e:
