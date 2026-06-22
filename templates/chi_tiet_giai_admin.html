@@ -35,6 +35,7 @@
         .tran-card.saving { opacity: .72; }
         .score-pill { font-size: .92rem; min-width: 76px; }
         .live-score-input { max-width: 110px; text-align: center; font-size: 2rem; font-weight: 800; }
+        .score-step-btn { width: 42px; height: 42px; font-size: 1.3rem; font-weight: 800; line-height: 1; }
         .server-order-btn { min-width: 54px; }
         #scoreTeamA, #scoreTeamB { white-space: pre-line; }
         .match-status { font-size: .68rem; letter-spacing: 0; }
@@ -630,28 +631,29 @@ BTC</textarea>
                 <div class="row g-3 align-items-center text-center">
                     <div class="col-5 score-side" id="scoreSideA" data-serving-side="A">
                         <div id="scoreTeamA" class="fw-bold text-primary small mb-2"></div>
-                        <input id="scoreInputA" type="number" class="form-control live-score-input mx-auto"
-                               min="0" max="99" inputmode="numeric" placeholder="0">
+                        <div class="d-flex align-items-center justify-content-center gap-2">
+                            <button type="button" class="btn btn-outline-secondary score-step-btn" data-score-target="A" data-score-delta="-1">-</button>
+                            <input id="scoreInputA" type="number" class="form-control live-score-input"
+                                   min="0" max="99" inputmode="numeric" placeholder="0">
+                            <button type="button" class="btn btn-outline-primary score-step-btn" data-score-target="A" data-score-delta="1">+</button>
+                        </div>
                     </div>
                     <div class="col-2">
                         <div class="fw-bold fs-4 text-muted">-</div>
                     </div>
                     <div class="col-5 score-side" id="scoreSideB" data-serving-side="B">
                         <div id="scoreTeamB" class="fw-bold text-success small mb-2"></div>
-                        <input id="scoreInputB" type="number" class="form-control live-score-input mx-auto"
-                               min="0" max="99" inputmode="numeric" placeholder="0">
+                        <div class="d-flex align-items-center justify-content-center gap-2">
+                            <button type="button" class="btn btn-outline-secondary score-step-btn" data-score-target="B" data-score-delta="-1">-</button>
+                            <input id="scoreInputB" type="number" class="form-control live-score-input"
+                                   min="0" max="99" inputmode="numeric" placeholder="0">
+                            <button type="button" class="btn btn-outline-success score-step-btn" data-score-target="B" data-score-delta="1">+</button>
+                        </div>
                     </div>
                 </div>
+                <input type="radio" class="btn-check" name="servingTeam" id="servingTeamA" value="A" autocomplete="off">
+                <input type="radio" class="btn-check" name="servingTeam" id="servingTeamB" value="B" autocomplete="off">
                 <div class="d-flex align-items-center justify-content-center gap-2 mt-4">
-                    <span class="fw-semibold text-muted">Đội giao</span>
-                    <div class="btn-group" role="group" aria-label="Đội giao">
-                        <input type="radio" class="btn-check" name="servingTeam" id="servingTeamA" value="A" autocomplete="off">
-                        <label class="btn btn-outline-warning server-order-btn" for="servingTeamA">A</label>
-                        <input type="radio" class="btn-check" name="servingTeam" id="servingTeamB" value="B" autocomplete="off">
-                        <label class="btn btn-outline-warning server-order-btn" for="servingTeamB">B</label>
-                    </div>
-                </div>
-                <div class="d-flex align-items-center justify-content-center gap-2 mt-3">
                     <span class="fw-semibold text-muted">Thứ tự đánh</span>
                     <div class="btn-group" role="group" aria-label="Thứ tự đánh">
                         <input type="radio" class="btn-check" name="scoreOrder" id="scoreOrder1" value="1" autocomplete="off">
@@ -743,6 +745,14 @@ function selectServingTeam(side, resetOrder = true) {
         scoreOrder1.checked = true;
     }
     updateServingHighlight();
+    scheduleScoreSave();
+}
+
+function stepScore(side, delta) {
+    const input = side === 'A' ? scoreInputA : scoreInputB;
+    const current = normalizeScoreValue(input.value) || 0;
+    input.value = Math.max(0, current + delta);
+    applyScoreLimit(input);
     scheduleScoreSave();
 }
 
@@ -935,6 +945,13 @@ document.querySelectorAll('.tran-card[data-match-id]').forEach((card) => {
 
 [scoreSideA, scoreSideB].forEach((sideEl) => {
     sideEl.addEventListener('click', () => selectServingTeam(sideEl.dataset.servingSide, true));
+});
+
+document.querySelectorAll('[data-score-target]').forEach((btn) => {
+    btn.addEventListener('click', (event) => {
+        event.stopPropagation();
+        stepScore(btn.dataset.scoreTarget, Number.parseInt(btn.dataset.scoreDelta, 10) || 0);
+    });
 });
 
 if (enableAudioBtn) {
