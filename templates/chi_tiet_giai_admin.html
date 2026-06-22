@@ -366,7 +366,7 @@ BTC</textarea>
     <!-- ── LỊCH THI ĐẤU ────────────────────────────────────── -->
     <div class="card mb-3">
         <div class="card-hdr dark">
-            <span>📅 LỊCH THI ĐẤU – {{ giai.loai_dau|upper if giai.loai_dau else 'ĐƠN' }}</span>
+            <span>📅 LỊCH THI ĐẤU</span>
             {% if giai.vong_dict %}
             <form action="/giai-dau/{{ giai.id }}/chia-lich" method="POST" class="mb-0">
                 <button type="submit" class="btn btn-sm btn-warning fw-bold"
@@ -445,7 +445,7 @@ BTC</textarea>
                         <p class="text-muted mb-3">Chưa có lịch thi đấu. Bấm bên dưới để tự động sinh lịch.</p>
                         <form action="/giai-dau/{{ giai.id }}/chia-lich" method="POST">
                             <button type="submit" class="btn btn-primary fw-bold px-4">
-                                ⚡ TỰ ĐỘNG SINH LỊCH ({% if giai.loai_dau == 'doi' %}Đôi{% else %}Đơn{% endif %})
+                                ⚡ TỰ ĐỘNG SINH LỊCH
                             </button>
                         </form>
                     {% else %}
