@@ -163,50 +163,7 @@
                     </div>
 
                     <div class="mb-2">
-                        <label class="form-label fw-bold small text-muted">NỘI DUNG — gửi riêng từng người (có tên cá nhân)</label>
-                    </div>
-
-                    <!-- Tab chọn từng VĐV -->
-                    <ul class="nav nav-tabs mb-2" id="vdvTabs">
-                        {% for reg in registrations %}
-                        <li class="nav-item">
-                            <button class="nav-link {% if loop.first %}active{% endif %} py-1 px-2 small"
-                                    type="button"
-                                    data-bs-toggle="tab"
-                                    data-bs-target="#vdv-{{ loop.index }}">
-                                {{ reg[2].split()[0] }}
-                            </button>
-                        </li>
-                        {% endfor %}
-                    </ul>
-
-                    <div class="tab-content">
-                        {% for reg in registrations %}
-                        <div class="tab-pane fade {% if loop.first %}show active{% endif %}" id="vdv-{{ loop.index }}">
-                            <div class="input-group">
-                                <textarea id="content-{{ loop.index }}" class="form-control font-monospace" rows="9" readonly>Xin chào Anh/Chị {{ reg[2] }},
-
-Chào mừng Anh/Chị đến với giải đấu "{{ giai.ten_giai_dau }}", sẽ được tổ chức tại địa chỉ {{ giai.dia_diem or 'chưa xác định' }} vào lúc {{ giai.thoi_gian_bat_dau.strftime('%H:%M ngày %d/%m/%Y') if giai.thoi_gian_bat_dau else 'chưa xác định' }}.
-
-Thông tin chi tiết giải đấu xem tại website:
-{{ base_url }}/giai-dau/{{ giai.id }}/vdv
-
-Ban tổ chức rất mong Anh/Chị có mặt đầy đủ và đúng giờ để giải đấu được tổ chức thành công tốt đẹp.
-
-Xin trân trọng cảm ơn.
-BTC</textarea>
-                            </div>
-                            <div class="d-flex gap-2 mt-2 align-items-center">
-                                <small class="text-muted">Gửi đến: <strong>{{ reg[4] }}</strong></small>
-                                <button class="btn btn-sm btn-success ms-auto" onclick="copyText('content-{{ loop.index }}', this)">📋 Copy nội dung</button>
-                            </div>
-                        </div>
-                        {% endfor %}
-                    </div>
-
-                    <hr>
-                    <div class="mb-2">
-                        <label class="form-label fw-bold small text-muted">NỘI DUNG CHUNG — gửi một lần tới tất cả (không có tên riêng)</label>
+                        <label class="form-label fw-bold small text-muted">NỘI DUNG CHUNG</label>
                         <div class="input-group">
                             <textarea id="contentChung" class="form-control font-monospace" rows="9" readonly>Xin chào Quý Anh/Chị,
 

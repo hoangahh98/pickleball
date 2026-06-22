@@ -94,4 +94,4 @@ ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "gif", "webp"}
 # ============ APP SETTINGS ============
 APP_NAME = "Pickleball Tournament Manager"
 APP_VERSION = "1.0.0"
-BASE_URL = os.environ.get("BASE_URL", "http://127.0.0.1:5000")
+BASE_URL = os.environ.get("BASE_URL", "https://pickleball-m7wn.onrender.com")
