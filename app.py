@@ -8,7 +8,7 @@ from models import VanDongVienModel, TournamentModel, DangKyGiaiModel, MatchMode
 from services import FinanceService
 from knockout_logic import MatchSchedulerService
 from auth import AuthService, login_required, admin_required
-from config import FLASK_SECRET_KEY, FLASK_SECRET_KEY_ERROR, BASE_URL
+from config import FLASK_SECRET_KEY, FLASK_SECRET_KEY_ERROR, BASE_URL, LOG_ALL_REQUESTS, SLOW_REQUEST_MS
 from db import db_cursor
 from logging_service import DBLogger, DBLogViewer
 import traceback
@@ -27,6 +27,11 @@ def service_worker():
     response.headers['Service-Worker-Allowed'] = '/'
     response.headers['Cache-Control'] = 'no-cache'
     return response
+
+
+@app.route('/healthz')
+def healthz():
+    return "ok", 200
 
 
 def _safe_request_details():
@@ -56,14 +61,20 @@ def capture_action_start():
 
 @app.after_request
 def log_user_action(response):
+    duration_ms = int((time.time() - getattr(g, "request_started_at", time.time())) * 1000)
     skip_action_log = (
         request.endpoint == "static"
         or request.method == "HEAD"
         or request.path in ("/favicon.ico", "/healthz")
+        or (
+            not LOG_ALL_REQUESTS
+            and request.method == "GET"
+            and response.status_code < 400
+            and duration_ms < SLOW_REQUEST_MS
+        )
     )
     if not skip_action_log:
         user = session.get("user", {})
-        duration_ms = int((time.time() - getattr(g, "request_started_at", time.time())) * 1000)
         details = _safe_request_details()
         details["duration_ms"] = duration_ms
         DBLogger.log_user_action(
@@ -177,10 +188,11 @@ def trang_chu():
             rows = cursor.fetchall()
         
         danh_sach_giai = []
+        registrations_by_tournament = DangKyGiaiModel.get_by_tournaments([row[0] for row in rows])
         for row in rows:
             try:
                 giai_raw = tuple(row[:15])
-                registrations = DangKyGiaiModel.get_by_tournament(row[0])
+                registrations = registrations_by_tournament.get(row[0], [])
                 giai_detail = prepare_tournament_detail(giai_raw, registrations)
                 danh_sach_giai.append(giai_detail)
             except Exception as e:
@@ -188,7 +200,6 @@ def trang_chu():
                 DBLogger.log_error(error_msg, user.get('email'), '/', context=traceback.format_exc())
                 continue
         
-        DBLogger.log_success(f"Loaded {len(danh_sach_giai)} tournaments", user.get('email'), '/')
         return render_template('index.html', danh_sach_giai=danh_sach_giai)
     except Exception as e:
         DBLogger.log_error(f"Error loading tournaments: {str(e)}", user.get('email'), '/', context=traceback.format_exc())
@@ -399,19 +410,6 @@ def sua_giai_dau(giai_id):
             giai_raw = TournamentModel.get_details(giai_id)
             if not giai_raw:
                 return "Không tìm thấy", 404
-            # ← Get loai_dau from database
-            with db_cursor() as cursor:
-                cursor.execute("""
-                    SELECT loai_dau, COALESCE(diem_cham, 11), COALESCE(diem_toi_da, 15)
-                    FROM giai_dau
-                    WHERE id = %s;
-                """, (giai_id,))
-                result = cursor.fetchone()
-            giai_raw = giai_raw + (
-                result[0] if result else 'don',
-                result[1] if result else 11,
-                result[2] if result else 15
-            )
             return render_template('sua_giai.html', giai=giai_raw)
         
         TournamentModel.ensure_score_rule_columns()
@@ -499,9 +497,9 @@ def chi_tiet_giai_admin(giai_id):
         giai_detail['matches'] = matches
         giai_detail['registrations'] = registrations
         giai_detail['all_vdv'] = all_vdv
-        score_rules = TournamentModel.get_score_rules(giai_id)
-        giai_detail['diem_cham'] = int(score_rules[0] or 11)
-        giai_detail['diem_toi_da'] = int(score_rules[1] or 15)
+        giai_detail['loai_dau'] = giai_raw[15] if len(giai_raw) > 15 and giai_raw[15] else 'don'
+        giai_detail['diem_cham'] = int(giai_raw[16] if len(giai_raw) > 16 and giai_raw[16] else 11)
+        giai_detail['diem_toi_da'] = int(giai_raw[17] if len(giai_raw) > 17 and giai_raw[17] else 15)
 
         # Build vong_dict: { vong_number: [match_dict, ...] } for the template
         vong_dict = {}
@@ -517,18 +515,6 @@ def chi_tiet_giai_admin(giai_id):
                 "doi_dang_giao": m[9] if len(m) > 9 and m[9] else 'A'
             })
         giai_detail['vong_dict'] = vong_dict
-        
-        # ← FIX #1: Properly get loai_dau with error handling
-        try:
-            with db_cursor() as cursor:
-                cursor.execute("SELECT loai_dau FROM giai_dau WHERE id = %s;", (giai_id,))
-                result = cursor.fetchone()
-            loai_dau = result[0] if result and result[0] else 'don'
-            giai_detail['loai_dau'] = loai_dau
-            DBLogger.log_info(f"Tournament {giai_id} loai_dau={loai_dau}", user.get('email'), f'/giai-dau/{giai_id}/admin')
-        except Exception as e:
-            DBLogger.log_warning(f"Could not get loai_dau: {str(e)}", user.get('email'), f'/giai-dau/{giai_id}/admin')
-            giai_detail['loai_dau'] = 'don'
         
         canh_bao = None
         if request.args.get('error') == 'full':
@@ -575,18 +561,7 @@ def dang_ky_vdv(giai_id):
         if not van_dong_vien_ids:
             return redirect(f'/giai-dau/{giai_id}/admin?error=full')
 
-        added_count = 0
-        current_count = len(registrations)
-        for van_dong_vien_id in van_dong_vien_ids:
-            if so_nguoi_du_kien and current_count >= so_nguoi_du_kien:
-                DBLogger.log_warning(
-                    f"Registration stopped: tournament {giai_id} reached limit ({current_count}/{so_nguoi_du_kien})",
-                    user.get('email'), f'/giai-dau/{giai_id}/dang-ky'
-                )
-                break
-            DangKyGiaiModel.register(van_dong_vien_id, giai_id)
-            added_count += 1
-            current_count += 1
+        added_count = DangKyGiaiModel.register_many(van_dong_vien_ids, giai_id)
 
         DBLogger.log_success(f"{added_count} VĐV registered for tournament {giai_id}", user.get('email'), f'/giai-dau/{giai_id}/dang-ky')
         suffix = '?error=full' if added_count < selected_count else ''
@@ -644,15 +619,7 @@ def auto_chia_lich(giai_id):
         giai_raw = TournamentModel.get_details(giai_id)
         so_san = giai_raw[2] if giai_raw else 1
         
-        # ← FIX #1: Get loai_dau with error handling
-        try:
-            with db_cursor() as cursor:
-                cursor.execute("SELECT loai_dau FROM giai_dau WHERE id = %s;", (giai_id,))
-                result = cursor.fetchone()
-            loai_dau = result[0] if result and result[0] else 'don'
-        except Exception as e:
-            DBLogger.log_warning(f"Could not get loai_dau: {str(e)}", user.get('email'), f'/giai-dau/{giai_id}/chia-lich')
-            loai_dau = 'don'
+        loai_dau = giai_raw[15] if len(giai_raw) > 15 and giai_raw[15] else 'don'
         
         MatchModel.delete_by_tournament(giai_id)
 
@@ -679,7 +646,7 @@ def cap_nhat_tien_hang_loat(giai_id):
     user = session.get('user', {})
     try:
         registrations = DangKyGiaiModel.get_by_tournament(giai_id)
-        updated = 0
+        updates = []
         for reg in registrations:
             reg_id = reg[0]
             so_tien = request.form.get(f'tien_{reg_id}', 0)
@@ -688,8 +655,8 @@ def cap_nhat_tien_hang_loat(giai_id):
                 so_tien = float(so_tien) if so_tien else 0
             except ValueError:
                 so_tien = 0
-            DangKyGiaiModel.update_payment(reg_id, so_tien, trang_thai)
-            updated += 1
+            updates.append((reg_id, so_tien, trang_thai))
+        updated = DangKyGiaiModel.update_payments(updates)
         DBLogger.log_success(f"Batch payment update: {updated} records for tournament {giai_id}", user.get('email'), f'/giai-dau/{giai_id}/cap-nhat-tien-hang-loat')
         return redirect(f'/giai-dau/{giai_id}/admin')
     except Exception as e:
@@ -848,12 +815,13 @@ def vdv_dashboard():
     try:
         vdv_id = user['id']
         tournaments_raw = DangKyGiaiModel.get_by_vdv(vdv_id)
+        registrations_by_tournament = DangKyGiaiModel.get_by_tournaments([row[1] for row in tournaments_raw])
         
         vdv_giai = []
         for row in tournaments_raw:
             try:
                 giai_raw = tuple(row[1:16])
-                registrations = DangKyGiaiModel.get_by_tournament(row[1])
+                registrations = registrations_by_tournament.get(row[1], [])
                 giai_detail = prepare_tournament_detail(giai_raw, registrations)
                 vdv_giai.append(giai_detail)
             except Exception as e:
@@ -915,14 +883,7 @@ def chi_tiet_giai_vdv(giai_id):
             })
         giai_detail['vong_dict'] = vong_dict
 
-        # Get loai_dau
-        try:
-            with db_cursor() as cur2:
-                cur2.execute("SELECT loai_dau FROM giai_dau WHERE id = %s;", (giai_id,))
-                r = cur2.fetchone()
-            giai_detail['loai_dau'] = r[0] if r and r[0] else 'don'
-        except Exception:
-            giai_detail['loai_dau'] = 'don'
+        giai_detail['loai_dau'] = giai_raw[15] if len(giai_raw) > 15 and giai_raw[15] else 'don'
         
         DBLogger.log_request('GET', f'/giai-dau/{giai_id}/vdv', user.get('email'))
         return render_template('chi_tiet_giai_vdv.html', giai=giai_detail, registrations=registrations, enumerate=enumerate)

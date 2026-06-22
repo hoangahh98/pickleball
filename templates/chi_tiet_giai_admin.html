@@ -261,15 +261,14 @@ BTC</textarea>
                                         {% endif %}
                                     {% endfor %}
                                 </select>
-                                <div id="playerSelectHint" class="form-text">Còn {{ slots_left }} chỗ trống. Giữ Ctrl để chọn nhiều người.</div>
+                                <div id="playerSelectHint" class="form-text">Còn {{ slots_left }} chỗ trống. Chạm để chọn nhiều người.</div>
                                 <div class="d-flex gap-2 mt-2">
                                     <button type="submit" class="btn btn-success btn-sm text-nowrap">💾 Lưu đã chọn</button>
-                                    <a href="/van-dong-vien/them" class="btn btn-outline-success btn-sm text-nowrap">➕ Thêm VĐV mới</a>
                                 </div>
                             </form>
                             {% if not giai.all_vdv or (giai.all_vdv|length == registered_ids|length) %}
                             <div class="small text-muted mt-1">
-                                Hết VĐV trong danh sách. <a href="/van-dong-vien/them">Tạo VĐV mới?</a>
+                                Hết VĐV trong danh sách. Hãy thêm VĐV ở trang quản lý vận động viên.
                             </div>
                             {% endif %}
                         {% endif %}
@@ -446,7 +445,7 @@ BTC</textarea>
                         <p class="text-muted mb-3">Chưa có lịch thi đấu. Bấm bên dưới để tự động sinh lịch.</p>
                         <form action="/giai-dau/{{ giai.id }}/chia-lich" method="POST">
                             <button type="submit" class="btn btn-primary fw-bold px-4">
-                                ⚡ TỰ ĐỘNG SINH LỊCH ({{ giai.loai_dau|upper if giai.loai_dau else 'ĐƠN' }})
+                                ⚡ TỰ ĐỘNG SINH LỊCH ({% if giai.loai_dau == 'doi' %}Đôi{% else %}Đơn{% endif %})
                             </button>
                         </form>
                     {% else %}
@@ -970,7 +969,7 @@ if ('speechSynthesis' in window) {
 const playerMultiSelect = document.getElementById('playerMultiSelect');
 const playerSelectHint = document.getElementById('playerSelectHint');
 if (playerMultiSelect) {
-    playerMultiSelect.addEventListener('change', () => {
+    const updatePlayerSelectHint = () => {
         const maxSelected = Number.parseInt(playerMultiSelect.dataset.slotsLeft, 10) || 0;
         const selected = Array.from(playerMultiSelect.selectedOptions);
         if (selected.length > maxSelected) {
@@ -981,6 +980,13 @@ if (playerMultiSelect) {
             playerSelectHint.textContent = `Đã chọn ${selected.length}/${maxSelected} chỗ trống.`;
             playerSelectHint.className = 'form-text text-muted';
         }
+    };
+    const schedulePlayerSelectHintUpdate = () => {
+        window.setTimeout(updatePlayerSelectHint, 0);
+        window.setTimeout(updatePlayerSelectHint, 80);
+    };
+    ['change', 'input', 'click', 'touchend', 'keyup'].forEach((eventName) => {
+        playerMultiSelect.addEventListener(eventName, schedulePlayerSelectHintUpdate);
     });
 }
 </script>

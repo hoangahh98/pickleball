@@ -1,6 +1,6 @@
 import json
 from flask import has_request_context, request
-from config import DB_CONFIG_ERROR
+from config import DB_CONFIG_ERROR, LOG_GET_REQUESTS
 from db import db_cursor
 from schema import ensure_log_schema
 
@@ -41,6 +41,8 @@ class DBLogger:
 
     @staticmethod
     def log_request(method, route, user_email=None):
+        if method == "GET" and not LOG_GET_REQUESTS:
+            return
         DBLogger._insert_log("REQUEST", f"{method} {route}", user_email, route, method)
 
     @staticmethod

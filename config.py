@@ -20,6 +20,20 @@ load_dotenv()
 DATABASE_URL = os.environ.get("DATABASE_URL")
 
 
+def _env_bool(name, default=False):
+    value = os.environ.get(name)
+    if value is None:
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _env_int(name, default):
+    try:
+        return int(os.environ.get(name, default))
+    except (TypeError, ValueError):
+        return default
+
+
 def _db_config_from_url(database_url):
     parsed = urlparse(database_url)
     query = parse_qs(parsed.query)
@@ -94,4 +108,11 @@ ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "gif", "webp"}
 # ============ APP SETTINGS ============
 APP_NAME = "Pickleball Tournament Manager"
 APP_VERSION = "1.0.0"
-BASE_URL = os.environ.get("BASE_URL", "https://pickleball-m7wn.onrender.com")
+BASE_URL = os.environ.get("BASE_URL", "https://pickleball-1-hsk7.onrender.com")
+
+# ============ PERFORMANCE SETTINGS ============
+DB_POOL_MIN = max(1, _env_int("DB_POOL_MIN", 1))
+DB_POOL_MAX = max(DB_POOL_MIN, _env_int("DB_POOL_MAX", 5))
+LOG_ALL_REQUESTS = _env_bool("LOG_ALL_REQUESTS", False)
+LOG_GET_REQUESTS = _env_bool("LOG_GET_REQUESTS", False)
+SLOW_REQUEST_MS = max(0, _env_int("SLOW_REQUEST_MS", 1200))

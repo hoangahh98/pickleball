@@ -48,6 +48,36 @@ ADD COLUMN IF NOT EXISTS thu_tu_danh INTEGER DEFAULT 2;
 
 ALTER TABLE tran_dau
 ADD COLUMN IF NOT EXISTS doi_dang_giao VARCHAR(1) DEFAULT 'A';
+
+CREATE INDEX IF NOT EXISTS idx_van_dong_vien_lower_email
+ON van_dong_vien (lower(email));
+
+CREATE INDEX IF NOT EXISTS idx_van_dong_vien_ten
+ON van_dong_vien (ten_vdv);
+
+CREATE INDEX IF NOT EXISTS idx_giai_dau_id_desc
+ON giai_dau (id DESC);
+
+CREATE INDEX IF NOT EXISTS idx_dang_ky_giai_giai
+ON dang_ky_giai (giai_dau_id);
+
+CREATE INDEX IF NOT EXISTS idx_dang_ky_giai_vdv
+ON dang_ky_giai (van_dong_vien_id);
+
+CREATE INDEX IF NOT EXISTS idx_dang_ky_giai_giai_vdv
+ON dang_ky_giai (giai_dau_id, van_dong_vien_id);
+
+CREATE INDEX IF NOT EXISTS idx_tran_dau_giai_order
+ON tran_dau (giai_dau_id, vong_dau, san_so_may, id);
+
+CREATE INDEX IF NOT EXISTS idx_app_logs_level_created
+ON app_logs (log_level, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_app_logs_created
+ON app_logs (created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_user_actions_email_created
+ON user_actions (user_email, created_at DESC);
 """
 
 

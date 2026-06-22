@@ -80,7 +80,8 @@ class TournamentModel:
                 SELECT id, ten_giai_dau, so_luong_san, dia_diem,
                        chi_phi_san_bai, chi_phi_nuoc_noi, chi_phi_giai_thuong, chi_phi_khac,
                        ty_le_giai_1, ty_le_giai_2, ty_le_giai_3, so_nguoi_du_kien,
-                       thoi_gian_bat_dau, banner_image, qr_image
+                       thoi_gian_bat_dau, banner_image, qr_image,
+                       COALESCE(loai_dau, 'don'), COALESCE(diem_cham, 11), COALESCE(diem_toi_da, 15)
                 FROM giai_dau WHERE id = %s;
             """, (giai_id,))
             return cursor.fetchone()
@@ -136,6 +137,27 @@ class DangKyGiaiModel:
                 ORDER BY g.id DESC;
             """, (vdv_id,))
             return cursor.fetchall()
+
+    @staticmethod
+    def get_by_tournaments(giai_ids):
+        """Get registrations for many tournaments in one query, grouped by tournament ID."""
+        ids = [int(giai_id) for giai_id in giai_ids if giai_id]
+        if not ids:
+            return {}
+
+        with db_cursor() as cursor:
+            cursor.execute("""
+                SELECT dkg.giai_dau_id, dkg.id, dkg.van_dong_vien_id, vdv.ten_vdv, vdv.trinh_do, vdv.email,
+                       dkg.so_tien_da_dong, dkg.trang_thai_dong_tien, dkg.ghi_chu
+                FROM dang_ky_giai dkg
+                INNER JOIN van_dong_vien vdv ON dkg.van_dong_vien_id = vdv.id
+                WHERE dkg.giai_dau_id = ANY(%s)
+                ORDER BY dkg.giai_dau_id DESC, vdv.ten_vdv ASC;
+            """, (ids,))
+            grouped = {giai_id: [] for giai_id in ids}
+            for row in cursor.fetchall():
+                grouped.setdefault(row[0], []).append(row[1:])
+            return grouped
     
     @staticmethod
     def register(van_dong_vien_id, giai_dau_id):
@@ -145,6 +167,19 @@ class DangKyGiaiModel:
                 INSERT INTO dang_ky_giai (van_dong_vien_id, giai_dau_id)
                 VALUES (%s, %s);
             """, (van_dong_vien_id, giai_dau_id))
+
+    @staticmethod
+    def register_many(van_dong_vien_ids, giai_dau_id):
+        """Register many players for one tournament using one transaction."""
+        rows = [(vdv_id, giai_dau_id) for vdv_id in van_dong_vien_ids]
+        if not rows:
+            return 0
+        with db_cursor(commit=True) as cursor:
+            cursor.executemany("""
+                INSERT INTO dang_ky_giai (van_dong_vien_id, giai_dau_id)
+                VALUES (%s, %s);
+            """, rows)
+        return len(rows)
     
     @staticmethod
     def update_payment(dang_ky_id, so_tien, trang_thai):
@@ -155,6 +190,20 @@ class DangKyGiaiModel:
                 SET so_tien_da_dong=%s, trang_thai_dong_tien=%s
                 WHERE id=%s;
             """, (so_tien, trang_thai, dang_ky_id))
+
+    @staticmethod
+    def update_payments(updates):
+        """Update many registration payments in one transaction."""
+        rows = [(so_tien, trang_thai, dang_ky_id) for dang_ky_id, so_tien, trang_thai in updates]
+        if not rows:
+            return 0
+        with db_cursor(commit=True) as cursor:
+            cursor.executemany("""
+                UPDATE dang_ky_giai
+                SET so_tien_da_dong=%s, trang_thai_dong_tien=%s
+                WHERE id=%s;
+            """, rows)
+        return len(rows)
     
     @staticmethod
     def remove(dang_ky_id):
