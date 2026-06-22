@@ -417,7 +417,7 @@
             <table class="table table-hover mb-0">
                 <thead class="table-dark"><tr>
                     <th>Tên</th><th>Trình</th>
-                    <th>Tiền đóng</th><th>Trạng thái</th>
+                    <th>Tiền đóng</th><th>Trạng thái</th><th>Ghi chú</th>
                 </tr></thead>
                 <tbody>
                 {% for nc in giai.nguoi_choi_list %}
@@ -425,6 +425,13 @@
                     <td class="fw-semibold">{{ nc.ten }}</td>
                     <td><span class="badge bg-secondary">{{ nc.trinh_do }}</span></td>
                     <td>{{ "{:,.0f}".format(nc.tien_dong) }}đ</td>
+                    <td>
+                        {% if nc.trang_thai_dong_tien == 'Đã đóng' %}
+                            <span class="badge bg-success">✅ Đã đóng</span>
+                        {% else %}
+                            <span class="badge bg-danger">❌ Chưa đóng</span>
+                        {% endif %}
+                    </td>
                     <td>
                         {% if nc.chenh_lech > 0 %}
                             <span class="badge bg-success">+{{ "{:,.0f}".format(nc.chenh_lech) }}đ donate</span>

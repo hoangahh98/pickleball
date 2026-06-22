@@ -22,9 +22,10 @@ def prepare_tournament_detail(giai_raw, registrations):
     """Prepare tournament details with correct data format"""
     players_for_calc = []
     for reg in registrations:
-        # Format: (id, giai_dau_id, ten, trinh_do, so_tien, ghi_chu, email)
+        # reg: (dkg.id, van_dong_vien_id, ten_vdv, trinh_do, email, so_tien_da_dong, trang_thai_dong_tien, ghi_chu)
         reformatted = (
-            reg[0], reg[1], reg[2], reg[3], reg[5], reg[7], reg[4]
+            reg[0], reg[1], reg[2], reg[3], reg[5], reg[7], reg[4], reg[6]
+            # id,   vdv_id, ten,    trinh,   tien,   ghi_chu, email,  trang_thai
         )
         players_for_calc.append(reformatted)
     
@@ -672,6 +673,31 @@ def chi_tiet_giai_vdv(giai_id):
         giai_detail['matches'] = matches
         giai_detail['registrations'] = registrations
         giai_detail['user_role'] = 'vdv'
+
+        # Build vong_dict for schedule display (same as admin route)
+        vong_dict = {}
+        for m in matches:
+            vong = m[7] or 1
+            if vong not in vong_dict:
+                vong_dict[vong] = []
+            vong_dict[vong].append({
+                "id": m[0], "doi_a": m[1], "doi_b": m[2],
+                "diem_a": m[3], "diem_b": m[4],
+                "trang_thai": m[5], "san": m[6] or 1, "vong": vong
+            })
+        giai_detail['vong_dict'] = vong_dict
+
+        # Get loai_dau
+        try:
+            conn2 = psycopg2.connect(**DB_CONFIG)
+            cur2 = conn2.cursor()
+            cur2.execute("SELECT loai_dau FROM giai_dau WHERE id = %s;", (giai_id,))
+            r = cur2.fetchone()
+            giai_detail['loai_dau'] = r[0] if r and r[0] else 'don'
+            cur2.close()
+            conn2.close()
+        except Exception:
+            giai_detail['loai_dau'] = 'don'
         
         DBLogger.log_request('GET', f'/giai-dau/{giai_id}/vdv', user.get('email'))
         return render_template('chi_tiet_giai_vdv.html', giai=giai_detail, registrations=registrations, enumerate=enumerate)

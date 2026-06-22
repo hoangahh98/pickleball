@@ -20,9 +20,9 @@ class FinanceService:
         tong_tien_thuc_thu = 0
         tong_tien_donate = 0
         
-        # FIX: Đúng unpacking tuple - 7 phần tử: id, giai_dau_id, ten, trinh_do, tien, ghi_chu, email
+        # players_raw format: (id, giai_dau_id, ten, trinh_do, tien, ghi_chu, email, trang_thai_dong_tien)
         for p in players_raw:
-            p_id, giai_id_check, ten_p, trinh, da_dong, ghi_chu, email = p
+            p_id, giai_id_check, ten_p, trinh, da_dong, ghi_chu, email, trang_thai = p if len(p) >= 8 else p + (None,)
             da_dong = da_dong or 0
             chenh_lech = da_dong - chi_phi_moi_nguoi
             
@@ -32,7 +32,8 @@ class FinanceService:
             tong_tien_thuc_thu += da_dong
             nguoi_choi_list.append({
                 "id": p_id, "ten": ten_p, "trinh_do": trinh,
-                "tien_dong": da_dong, "chenh_lech": chenh_lech, "ghi_chu": ghi_chu
+                "tien_dong": da_dong, "chenh_lech": chenh_lech,
+                "ghi_chu": ghi_chu, "trang_thai_dong_tien": trang_thai or "Chưa đóng"
             })
             
         # Quỹ thưởng = tổng tiền thực thu - chi phí vận hành (sân + nước + khác)
