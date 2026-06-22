@@ -275,13 +275,15 @@ BTC</textarea>
                             </div>
                         {% else %}
                             <form action="/giai-dau/{{ giai.id }}/dang-ky" method="POST" class="mt-2">
-                                <select class="form-select form-select-sm" name="van_dong_vien_ids" multiple size="6" required>
+                                {% set slots_left = (giai.so_nguoi_du_kien - registrations|length) if giai.so_nguoi_du_kien else 9999 %}
+                                <select class="form-select form-select-sm" id="playerMultiSelect" name="van_dong_vien_ids" multiple size="6" required data-slots-left="{{ slots_left }}">
                                     {% for vdv in giai.all_vdv %}
                                         {% if vdv[0] not in registered_ids %}
                                         <option value="{{ vdv[0] }}">{{ vdv[1] }} ({{ vdv[2] }})</option>
                                         {% endif %}
                                     {% endfor %}
                                 </select>
+                                <div id="playerSelectHint" class="form-text">Còn {{ slots_left }} chỗ trống. Giữ Ctrl để chọn nhiều người.</div>
                                 <div class="d-flex gap-2 mt-2">
                                     <button type="submit" class="btn btn-success btn-sm text-nowrap">💾 Lưu đã chọn</button>
                                     <a href="/van-dong-vien/them" class="btn btn-outline-success btn-sm text-nowrap">➕ Thêm VĐV mới</a>
@@ -678,6 +680,7 @@ let activeMatchCard = null;
 let saveScoreTimer = null;
 let speakScoreTimer = null;
 let vietnameseVoice = null;
+let scoreAudio = null;
 
 function normalizeScoreValue(value) {
     const trimmed = String(value ?? '').trim();
@@ -768,13 +771,38 @@ function loadVietnameseVoice() {
 }
 
 function speakCurrentScore() {
-    if (!('speechSynthesis' in window) || !activeMatchCard) return;
+    if (!activeMatchCard) return;
 
     const diemA = normalizeScoreValue(scoreInputA.value) || 0;
     const diemB = normalizeScoreValue(scoreInputB.value) || 0;
     const thuTuDanh = document.querySelector('input[name="scoreOrder"]:checked')?.value || '2';
     const text = `${readVietnameseNumber(diemA)}, ${readVietnameseNumber(diemB)}, ${readVietnameseNumber(thuTuDanh)}`;
 
+    speakWithGoogleTts(text).catch(() => speakWithBrowserVoice(text));
+}
+
+function speakWithGoogleTts(text) {
+    if (scoreAudio) {
+        scoreAudio.pause();
+        scoreAudio = null;
+    }
+    if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+    }
+
+    return new Promise((resolve, reject) => {
+        scoreAudio = new Audio(`https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=vi&q=${encodeURIComponent(text)}`);
+        scoreAudio.onended = resolve;
+        scoreAudio.onerror = reject;
+        const playPromise = scoreAudio.play();
+        if (playPromise && typeof playPromise.catch === 'function') {
+            playPromise.catch(reject);
+        }
+    });
+}
+
+function speakWithBrowserVoice(text) {
+    if (!('speechSynthesis' in window)) return;
     window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = 'vi-VN';
@@ -866,6 +894,23 @@ document.querySelectorAll('.tran-card[data-match-id]').forEach((card) => {
 loadVietnameseVoice();
 if ('speechSynthesis' in window) {
     window.speechSynthesis.onvoiceschanged = loadVietnameseVoice;
+}
+
+const playerMultiSelect = document.getElementById('playerMultiSelect');
+const playerSelectHint = document.getElementById('playerSelectHint');
+if (playerMultiSelect) {
+    playerMultiSelect.addEventListener('change', () => {
+        const maxSelected = Number.parseInt(playerMultiSelect.dataset.slotsLeft, 10) || 0;
+        const selected = Array.from(playerMultiSelect.selectedOptions);
+        if (selected.length > maxSelected) {
+            selected.slice(maxSelected).forEach((option) => { option.selected = false; });
+            playerSelectHint.textContent = `Chỉ còn ${maxSelected} chỗ trống, không thể chọn thêm.`;
+            playerSelectHint.className = 'form-text text-danger';
+        } else {
+            playerSelectHint.textContent = `Đã chọn ${selected.length}/${maxSelected} chỗ trống.`;
+            playerSelectHint.className = 'form-text text-muted';
+        }
+    });
 }
 </script>
 </body>

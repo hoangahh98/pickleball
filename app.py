@@ -520,15 +520,29 @@ def dang_ky_vdv(giai_id):
             )
             return redirect(f'/giai-dau/{giai_id}/admin?error=full')
 
+        selected_count = len(van_dong_vien_ids)
         if so_nguoi_du_kien:
             slots_left = max(so_nguoi_du_kien - len(registrations), 0)
             van_dong_vien_ids = van_dong_vien_ids[:slots_left]
 
-        for van_dong_vien_id in van_dong_vien_ids:
-            DangKyGiaiModel.register(van_dong_vien_id, giai_id)
+        if not van_dong_vien_ids:
+            return redirect(f'/giai-dau/{giai_id}/admin?error=full')
 
-        DBLogger.log_success(f"{len(van_dong_vien_ids)} VĐV registered for tournament {giai_id}", user.get('email'), f'/giai-dau/{giai_id}/dang-ky')
-        return redirect(f'/giai-dau/{giai_id}/admin')
+        added_count = 0
+        for van_dong_vien_id in van_dong_vien_ids:
+            current_count = len(DangKyGiaiModel.get_by_tournament(giai_id))
+            if so_nguoi_du_kien and current_count >= so_nguoi_du_kien:
+                DBLogger.log_warning(
+                    f"Registration stopped: tournament {giai_id} reached limit ({current_count}/{so_nguoi_du_kien})",
+                    user.get('email'), f'/giai-dau/{giai_id}/dang-ky'
+                )
+                break
+            DangKyGiaiModel.register(van_dong_vien_id, giai_id)
+            added_count += 1
+
+        DBLogger.log_success(f"{added_count} VĐV registered for tournament {giai_id}", user.get('email'), f'/giai-dau/{giai_id}/dang-ky')
+        suffix = '?error=full' if added_count < selected_count else ''
+        return redirect(f'/giai-dau/{giai_id}/admin{suffix}')
     except Exception as e:
         DBLogger.log_error(f"Error registering VĐV: {str(e)}", user.get('email'), f'/giai-dau/{giai_id}/dang-ky', context=traceback.format_exc())
         return f"❌ Error: {str(e)}", 500
