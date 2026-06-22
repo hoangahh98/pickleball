@@ -219,14 +219,34 @@ class DangKyGiaiModel:
 
 class MatchModel:
     """Trận đấu"""
+
+    @staticmethod
+    def ensure_score_order_column():
+        """Ensure pickleball server/order score column exists."""
+        conn = psycopg2.connect(**DB_CONFIG)
+        cursor = conn.cursor()
+        try:
+            cursor.execute("""
+                ALTER TABLE tran_dau
+                ADD COLUMN IF NOT EXISTS thu_tu_danh INTEGER DEFAULT 2;
+            """)
+            conn.commit()
+        except Exception as e:
+            conn.rollback()
+            raise e
+        finally:
+            cursor.close()
+            conn.close()
     
     @staticmethod
     def get_all_by_tournament(giai_id):
         """Get all matches for tournament"""
+        MatchModel.ensure_score_order_column()
         conn = psycopg2.connect(**DB_CONFIG)
         cursor = conn.cursor()
         cursor.execute("""
-            SELECT id, doi_a, doi_b, diem_doi_a, diem_doi_b, trang_thai, san_so_may, vong_dau
+            SELECT id, doi_a, doi_b, diem_doi_a, diem_doi_b, trang_thai, san_so_may, vong_dau,
+                   COALESCE(thu_tu_danh, 2)
             FROM tran_dau WHERE giai_dau_id = %s
             ORDER BY vong_dau ASC, san_so_may ASC, id ASC;
         """, (giai_id,))
@@ -271,15 +291,19 @@ class MatchModel:
             conn.close()
     
     @staticmethod
-    def update_score(tran_id, diem_a, diem_b):
+    def update_score(tran_id, diem_a, diem_b, thu_tu_danh=2):
         """Update match score"""
+        MatchModel.ensure_score_order_column()
         conn = psycopg2.connect(**DB_CONFIG)
         cursor = conn.cursor()
         try:
             trang_thai = 'Đã xong' if (diem_a is not None and diem_b is not None) else 'Chưa diễn ra'
+            thu_tu_danh = int(thu_tu_danh) if thu_tu_danh in (1, 2, '1', '2') else 2
             cursor.execute("""
-                UPDATE tran_dau SET diem_doi_a=%s, diem_doi_b=%s, trang_thai=%s WHERE id=%s;
-            """, (diem_a, diem_b, trang_thai, tran_id))
+                UPDATE tran_dau
+                SET diem_doi_a=%s, diem_doi_b=%s, thu_tu_danh=%s, trang_thai=%s
+                WHERE id=%s;
+            """, (diem_a, diem_b, thu_tu_danh, trang_thai, tran_id))
             conn.commit()
         except Exception as e:
             conn.rollback()

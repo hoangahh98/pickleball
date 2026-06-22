@@ -371,7 +371,8 @@ def chi_tiet_giai_admin(giai_id):
             vong_dict[vong].append({
                 "id": m[0], "doi_a": m[1], "doi_b": m[2],
                 "diem_a": m[3], "diem_b": m[4],
-                "trang_thai": m[5], "san": m[6] or 1, "vong": vong
+                "trang_thai": m[5], "san": m[6] or 1, "vong": vong,
+                "thu_tu_danh": m[8] if len(m) > 8 and m[8] else 2
             })
         giai_detail['vong_dict'] = vong_dict
         
@@ -535,13 +536,20 @@ def cap_nhat_tien_hang_loat(giai_id):
     except Exception as e:
         DBLogger.log_error(f"Batch payment error: {str(e)}", user.get('email'), f'/giai-dau/{giai_id}/cap-nhat-tien-hang-loat', context=traceback.format_exc())
         return f"❌ Error: {str(e)}", 500
+@app.route('/tran-dau/<int:tran_id>/cap-nhat-ty-so', methods=['POST'])
 @admin_required
 def cap_nhat_ty_so(tran_id):
     """Cập nhật tỷ số"""
     user = session.get('user', {})
     try:
-        diem_a = int(request.form.get('diem_a')) if request.form.get('diem_a') else None
-        diem_b = int(request.form.get('diem_b')) if request.form.get('diem_b') else None
+        data = request.get_json(silent=True) or request.form
+        diem_a_raw = data.get('diem_a')
+        diem_b_raw = data.get('diem_b')
+        thu_tu_raw = data.get('thu_tu_danh', 2)
+
+        diem_a = int(diem_a_raw) if str(diem_a_raw or '').strip() != '' else None
+        diem_b = int(diem_b_raw) if str(diem_b_raw or '').strip() != '' else None
+        thu_tu_danh = int(thu_tu_raw) if str(thu_tu_raw) in ('1', '2') else 2
         
         conn = psycopg2.connect(**DB_CONFIG)
         cursor = conn.cursor()
@@ -550,11 +558,23 @@ def cap_nhat_ty_so(tran_id):
         cursor.close()
         conn.close()
         
-        MatchModel.update_score(tran_id, diem_a, diem_b)
-        DBLogger.log_success(f"Match {tran_id} score updated: {diem_a}-{diem_b}", user.get('email'), f'/tran-dau/{tran_id}/cap-nhat-ty-so')
+        MatchModel.update_score(tran_id, diem_a, diem_b, thu_tu_danh)
+        DBLogger.log_success(f"Match {tran_id} score updated: {diem_a}-{diem_b}-{thu_tu_danh}", user.get('email'), f'/tran-dau/{tran_id}/cap-nhat-ty-so')
+        if request.is_json or request.headers.get('X-Requested-With') == 'fetch':
+            return jsonify({
+                'success': True,
+                'tran_id': tran_id,
+                'giai_id': giai_id,
+                'diem_a': diem_a,
+                'diem_b': diem_b,
+                'thu_tu_danh': thu_tu_danh,
+                'trang_thai': 'Đã xong' if diem_a is not None and diem_b is not None else 'Chưa diễn ra'
+            })
         return redirect(f'/giai-dau/{giai_id}/admin')
     except Exception as e:
         DBLogger.log_error(f"Error updating match: {str(e)}", user.get('email'), f'/tran-dau/{tran_id}/cap-nhat-ty-so', context=traceback.format_exc())
+        if request.is_json or request.headers.get('X-Requested-With') == 'fetch':
+            return jsonify({'success': False, 'error': str(e)}), 500
         return f"❌ Error: {str(e)}", 500
 
 # ============ AUTH ROUTES ============
@@ -710,7 +730,8 @@ def chi_tiet_giai_vdv(giai_id):
             vong_dict[vong].append({
                 "id": m[0], "doi_a": m[1], "doi_b": m[2],
                 "diem_a": m[3], "diem_b": m[4],
-                "trang_thai": m[5], "san": m[6] or 1, "vong": vong
+                "trang_thai": m[5], "san": m[6] or 1, "vong": vong,
+                "thu_tu_danh": m[8] if len(m) > 8 and m[8] else 2
             })
         giai_detail['vong_dict'] = vong_dict
 
