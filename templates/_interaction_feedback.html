@@ -1,0 +1,54 @@
+<script>
+(function() {
+    function markBusy(button, text) {
+        if (!button || button.dataset.busy === '1') {
+            return;
+        }
+        button.dataset.busy = '1';
+        button.dataset.originalHtml = button.innerHTML;
+        button.classList.add('disabled');
+        button.setAttribute('aria-disabled', 'true');
+        button.innerHTML = '<span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>' + text;
+    }
+
+    document.addEventListener('submit', function(event) {
+        const form = event.target;
+        if (!form || form.dataset.feedback === 'off') {
+            return;
+        }
+
+        const submitter = event.submitter || form.querySelector('button[type="submit"], input[type="submit"]');
+        markBusy(submitter, submitter && submitter.dataset.loadingText ? submitter.dataset.loadingText : 'Đang xử lý...');
+    }, true);
+
+    document.addEventListener('click', function(event) {
+        const link = event.target.closest('a.btn');
+        if (!link || link.dataset.feedback === 'off') {
+            return;
+        }
+
+        const href = link.getAttribute('href') || '';
+        const isActionLink = /(xoa|dang-ky|chia-lich|cap-nhat|tao-admin)/.test(href);
+        if (!isActionLink) {
+            return;
+        }
+
+        setTimeout(function() {
+            if (!event.defaultPrevented) {
+                markBusy(link, link.dataset.loadingText || 'Đang xử lý...');
+            }
+        }, 0);
+    }, true);
+
+    window.addEventListener('pageshow', function() {
+        document.querySelectorAll('[data-busy="1"]').forEach(function(item) {
+            item.dataset.busy = '0';
+            item.classList.remove('disabled');
+            item.removeAttribute('aria-disabled');
+            if (item.dataset.originalHtml) {
+                item.innerHTML = item.dataset.originalHtml;
+            }
+        });
+    });
+})();
+</script>
