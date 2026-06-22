@@ -38,7 +38,8 @@
         .server-order-btn { min-width: 54px; }
         #scoreTeamA, #scoreTeamB { white-space: pre-line; }
         .match-status { font-size: .68rem; letter-spacing: 0; }
-        .serving-team { outline: 2px solid #ffc107; outline-offset: 3px; border-radius: 6px; background: #fff8dc; }
+        .score-side { border: 2px solid transparent; border-radius: 8px; padding: 8px 4px; cursor: pointer; }
+        .score-side.serving-team { border-color: #ffc107; background: #fff8dc; }
 
         /* ── BXH ──────────────────────────────────────────── */
         .rank-1 { background: #fff8dc; }
@@ -436,7 +437,7 @@ BTC</textarea>
                                      data-serving-team="{{ tran.doi_dang_giao or 'A' }}">
                                     <div class="match-grid">
                                         <!-- Đội A (xuống dòng nếu có dấu +) -->
-                                        <div class="team-name {{ 'serving-team' if (tran.doi_dang_giao or 'A') == 'A' else '' }}" data-team-side="A">
+                                        <div class="team-name">
                                             {% for p in tran.doi_a.split(' + ') %}<span>{{ p }}</span>{% endfor %}
                                         </div>
                                         <!-- Tỷ số -->
@@ -449,7 +450,7 @@ BTC</textarea>
                                             </span>
                                         </div>
                                         <!-- Đội B -->
-                                        <div class="team-name text-end {{ 'serving-team' if (tran.doi_dang_giao or 'A') == 'B' else '' }}" data-team-side="B">
+                                        <div class="team-name text-end">
                                             {% for p in tran.doi_b.split(' + ') %}<span>{{ p }}</span>{% endfor %}
                                         </div>
                                     </div>
@@ -627,7 +628,7 @@ BTC</textarea>
             </div>
             <div class="modal-body">
                 <div class="row g-3 align-items-center text-center">
-                    <div class="col-5">
+                    <div class="col-5 score-side" id="scoreSideA" data-serving-side="A">
                         <div id="scoreTeamA" class="fw-bold text-primary small mb-2"></div>
                         <input id="scoreInputA" type="number" class="form-control live-score-input mx-auto"
                                min="0" max="99" inputmode="numeric" placeholder="0">
@@ -635,7 +636,7 @@ BTC</textarea>
                     <div class="col-2">
                         <div class="fw-bold fs-4 text-muted">-</div>
                     </div>
-                    <div class="col-5">
+                    <div class="col-5 score-side" id="scoreSideB" data-serving-side="B">
                         <div id="scoreTeamB" class="fw-bold text-success small mb-2"></div>
                         <input id="scoreInputB" type="number" class="form-control live-score-input mx-auto"
                                min="0" max="99" inputmode="numeric" placeholder="0">
@@ -691,6 +692,8 @@ const scoreOrder1 = document.getElementById('scoreOrder1');
 const scoreOrder2 = document.getElementById('scoreOrder2');
 const servingTeamA = document.getElementById('servingTeamA');
 const servingTeamB = document.getElementById('servingTeamB');
+const scoreSideA = document.getElementById('scoreSideA');
+const scoreSideB = document.getElementById('scoreSideB');
 const scoreSaveStatus = document.getElementById('scoreSaveStatus');
 const enableAudioBtn = document.getElementById('enableAudioBtn');
 const SCORE_TOUCH = {{ giai.diem_cham or 11 }};
@@ -727,27 +730,20 @@ function applyScoreLimit(changedInput) {
     }
 }
 
-function applySideOutLogic(changedInput) {
-    const order = document.querySelector('input[name="scoreOrder"]:checked')?.value || '2';
-    if (order !== '2') return;
+function updateServingHighlight() {
+    const serving = document.querySelector('input[name="servingTeam"]:checked')?.value || 'A';
+    scoreSideA.classList.toggle('serving-team', serving === 'A');
+    scoreSideB.classList.toggle('serving-team', serving === 'B');
+}
 
-    const isInputA = changedInput === scoreInputA;
-    const currentA = normalizeScoreValue(scoreInputA.value) || 0;
-    const currentB = normalizeScoreValue(scoreInputB.value) || 0;
-    const changedScore = isInputA ? currentA : currentB;
-    const previousScore = isInputA ? previousScoreState.a : previousScoreState.b;
-
-    if (changedScore > previousScore) {
-        if (isInputA) {
-            scoreInputA.value = previousScoreState.a;
-            servingTeamA.checked = true;
-        } else {
-            scoreInputB.value = previousScoreState.b;
-            servingTeamB.checked = true;
-        }
+function selectServingTeam(side, resetOrder = true) {
+    const current = document.querySelector('input[name="servingTeam"]:checked')?.value || 'A';
+    (side === 'B' ? servingTeamB : servingTeamA).checked = true;
+    if (resetOrder && side !== current) {
         scoreOrder1.checked = true;
-        setSaveStatus('Đổi lượt giao: 2 sang 1', 'text-warning');
     }
+    updateServingHighlight();
+    scheduleScoreSave();
 }
 
 function formatLiveScore(diemA, diemB, order) {
@@ -775,6 +771,7 @@ function openScoreModal(card) {
         order: card.dataset.order || '2',
         servingTeam: card.dataset.servingTeam || 'A'
     };
+    updateServingHighlight();
     setSaveStatus('Chưa thay đổi');
     scoreModal.show();
     setTimeout(() => scoreInputA.focus(), 150);
@@ -896,9 +893,6 @@ async function saveActiveScore() {
             statusBadge.textContent = result.trang_thai === 'Đã xong' ? 'Đã xong' : 'Đang đánh';
             statusBadge.className = `badge ${result.trang_thai === 'Đã xong' ? 'bg-success' : 'bg-secondary'} match-status`;
         }
-        activeMatchCard.querySelectorAll('[data-team-side]').forEach((teamEl) => {
-            teamEl.classList.toggle('serving-team', teamEl.dataset.teamSide === activeMatchCard.dataset.servingTeam);
-        });
         setSaveStatus('Đã tự lưu', 'text-success');
     } catch (error) {
         setSaveStatus(error.message, 'text-danger');
@@ -918,21 +912,29 @@ document.querySelectorAll('.tran-card[data-match-id]').forEach((card) => {
 });
 
 [scoreInputA, scoreInputB].forEach((input) => {
+    input.addEventListener('click', (event) => event.stopPropagation());
+    input.addEventListener('focus', (event) => event.stopPropagation());
     input.addEventListener('input', () => {
         applyScoreLimit(input);
-        applySideOutLogic(input);
         scheduleScoreSave();
     });
     input.addEventListener('change', () => {
         applyScoreLimit(input);
-        applySideOutLogic(input);
         scheduleScoreSave();
     });
 });
 
-[scoreOrder1, scoreOrder2, servingTeamA, servingTeamB].forEach((input) => {
+[scoreOrder1, scoreOrder2].forEach((input) => {
     input.addEventListener('input', scheduleScoreSave);
     input.addEventListener('change', scheduleScoreSave);
+});
+
+[servingTeamA, servingTeamB].forEach((input) => {
+    input.addEventListener('change', () => selectServingTeam(input.value, true));
+});
+
+[scoreSideA, scoreSideB].forEach((sideEl) => {
+    sideEl.addEventListener('click', () => selectServingTeam(sideEl.dataset.servingSide, true));
 });
 
 if (enableAudioBtn) {
