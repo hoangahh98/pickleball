@@ -481,15 +481,10 @@ BTC</textarea>
     <div class="card mb-5">
         <div class="card-hdr blue">
             <span>💰 DANH SÁCH ĐÓNG PHÍ</span>
-            <div class="d-flex gap-2">
-                <button type="submit" form="formDongPhi" class="btn btn-sm btn-light fw-bold">
-                    💾 Lưu tất cả
-                </button>
-                <button class="btn btn-sm btn-warning fw-bold" type="button"
-                        data-bs-toggle="collapse" data-bs-target="#formCapNhat">
-                    ✏️ Cập nhật phí
-                </button>
-            </div>
+            <button class="btn btn-sm btn-warning fw-bold" type="button"
+                    data-bs-toggle="collapse" data-bs-target="#formCapNhat">
+                ✏️ Cập nhật phí
+            </button>
         </div>
         <div class="card-body p-3">
             <!-- Tổng kết tài chính -->
@@ -522,46 +517,50 @@ BTC</textarea>
                 <form id="formDongPhi"
                       action="/giai-dau/{{ giai.id }}/cap-nhat-tien-hang-loat"
                       method="POST">
-                    <div class="border rounded p-3 bg-light">
-                        <p class="fw-bold mb-3 small text-muted">
-                            Chỉnh sửa phí cho tất cả VĐV, bấm
-                            <strong class="text-primary">💾 Lưu tất cả</strong>
-                            để lưu một lần.
-                        </p>
-                        <div class="row g-2">
-                        {% for reg in registrations %}
-                        <div class="col-12">
-                            <div class="d-flex align-items-center gap-2 flex-wrap py-1
-                                        border-bottom border-light">
-                                <span class="fw-semibold" style="min-width:160px">
+                    <div class="border rounded bg-light overflow-hidden">
+                        <table class="table table-sm mb-0 align-middle">
+                            <thead class="table-secondary">
+                                <tr>
+                                    <th style="width:40%">Vận động viên</th>
+                                    <th style="width:25%">Số tiền đã đóng</th>
+                                    <th style="width:25%">Trạng thái</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                            {% for reg in registrations %}
+                            <tr>
+                                <td class="fw-semibold">
                                     {{ reg[2] }}
                                     <span class="badge bg-secondary ms-1">{{ reg[3] }}</span>
-                                </span>
-                                <div class="input-group input-group-sm" style="max-width:180px">
-                                    <span class="input-group-text">₫</span>
-                                    <input type="number"
-                                           name="tien_{{ reg[0] }}"
-                                           class="form-control"
-                                           value="{{ reg[5] or 0 }}"
-                                           min="0" step="1000">
-                                </div>
-                                <select name="trang_thai_{{ reg[0] }}"
-                                        class="form-select form-select-sm"
-                                        style="max-width:150px">
-                                    <option value="Đã đóng"
-                                        {% if reg[6] == 'Đã đóng' %}selected{% endif %}>
-                                        ✅ Đã đóng
-                                    </option>
-                                    <option value="Chưa đóng"
-                                        {% if reg[6] != 'Đã đóng' %}selected{% endif %}>
-                                        ❌ Chưa đóng
-                                    </option>
-                                </select>
-                            </div>
-                        </div>
-                        {% endfor %}
-                        </div>
-                        <div class="mt-3 text-end">
+                                </td>
+                                <td>
+                                    <div class="input-group input-group-sm">
+                                        <span class="input-group-text">₫</span>
+                                        <input type="number"
+                                               name="tien_{{ reg[0] }}"
+                                               class="form-control"
+                                               value="{{ reg[5] or 0 }}"
+                                               min="0" step="1000">
+                                    </div>
+                                </td>
+                                <td>
+                                    <select name="trang_thai_{{ reg[0] }}"
+                                            class="form-select form-select-sm">
+                                        <option value="Đã đóng"
+                                            {% if reg[6] == 'Đã đóng' %}selected{% endif %}>
+                                            ✅ Đã đóng
+                                        </option>
+                                        <option value="Chưa đóng"
+                                            {% if reg[6] != 'Đã đóng' %}selected{% endif %}>
+                                            ❌ Chưa đóng
+                                        </option>
+                                    </select>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                            </tbody>
+                        </table>
+                        <div class="p-3 text-end border-top bg-white">
                             <button type="submit" class="btn btn-primary fw-bold px-4">
                                 💾 Lưu tất cả ({{ registrations|length }} VĐV)
                             </button>
