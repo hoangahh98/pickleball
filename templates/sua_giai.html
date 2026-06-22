@@ -54,6 +54,30 @@
                         </div>
                     </div>
 
+                    <!-- LUẬT ĐIỂM -->
+                    <div class="card bg-light mb-3">
+                        <div class="card-body">
+                            <h6 class="mb-3"><strong>🎯 Luật Điểm</strong></h6>
+                            <div class="row g-2">
+                                <div class="col-md-6">
+                                    <label class="form-label">Đánh chạm điểm</label>
+                                    <input type="number" name="diem_cham" class="form-control"
+                                           value="{{ giai[16] if giai|length > 16 and giai[16] else 11 }}"
+                                           min="1" max="99" required>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Max điểm</label>
+                                    <input type="number" name="diem_toi_da" class="form-control"
+                                           value="{{ giai[17] if giai|length > 17 and giai[17] else 15 }}"
+                                           min="1" max="99" required>
+                                </div>
+                            </div>
+                            <div class="form-text">
+                                Ví dụ chạm 11, max 15: 11-9 là xong, 10-10 phải đánh tiếp đến 12-10, còn bên nào đạt 15 là xong.
+                            </div>
+                        </div>
+                    </div>
+
                     <!-- SỐ NGƯỜI DỰ KIẾN -->
                     <div class="mb-3">
                         <label class="form-label"><strong>👥 Số Người Dự Kiến</strong></label>

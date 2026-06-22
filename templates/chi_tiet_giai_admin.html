@@ -709,15 +709,33 @@ function scheduleScoreSave() {
     speakScoreTimer = window.setTimeout(speakCurrentScore, 650);
 }
 
+function readVietnameseNumber(value) {
+    const number = Number.parseInt(value, 10) || 0;
+    const units = ['không', 'một', 'hai', 'ba', 'bốn', 'năm', 'sáu', 'bảy', 'tám', 'chín'];
+    if (number < 10) return units[number];
+    if (number === 10) return 'mười';
+    if (number < 20) {
+        if (number === 15) return 'mười lăm';
+        return `mười ${units[number % 10]}`;
+    }
+    if (number < 100) {
+        const tens = Math.floor(number / 10);
+        const unit = number % 10;
+        if (unit === 0) return `${units[tens]} mươi`;
+        if (unit === 1) return `${units[tens]} mươi mốt`;
+        if (unit === 5) return `${units[tens]} mươi lăm`;
+        return `${units[tens]} mươi ${units[unit]}`;
+    }
+    return String(number);
+}
+
 function speakCurrentScore() {
     if (!('speechSynthesis' in window) || !activeMatchCard) return;
 
     const diemA = normalizeScoreValue(scoreInputA.value) || 0;
     const diemB = normalizeScoreValue(scoreInputB.value) || 0;
     const thuTuDanh = document.querySelector('input[name="scoreOrder"]:checked')?.value || '2';
-    const teamA = activeMatchCard.dataset.teamA.replaceAll(' + ', ' và ');
-    const teamB = activeMatchCard.dataset.teamB.replaceAll(' + ', ' và ');
-    const text = `${teamA} ${diemA}, ${teamB} ${diemB}, lượt ${thuTuDanh}`;
+    const text = `${readVietnameseNumber(diemA)} ${readVietnameseNumber(diemB)} ${readVietnameseNumber(thuTuDanh)}`;
 
     window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(text);

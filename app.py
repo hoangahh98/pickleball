@@ -264,23 +264,39 @@ def sua_giai_dau(giai_id):
     user = session.get('user', {})
     try:
         if request.method == 'GET':
+            TournamentModel.ensure_score_rule_columns()
             giai_raw = TournamentModel.get_details(giai_id)
             if not giai_raw:
                 return "Không tìm thấy", 404
             # ← Get loai_dau from database
             conn = psycopg2.connect(**DB_CONFIG)
             cursor = conn.cursor()
-            cursor.execute("SELECT loai_dau FROM giai_dau WHERE id = %s;", (giai_id,))
+            cursor.execute("""
+                SELECT loai_dau, COALESCE(diem_cham, 11), COALESCE(diem_toi_da, 15)
+                FROM giai_dau
+                WHERE id = %s;
+            """, (giai_id,))
             result = cursor.fetchone()
             cursor.close()
             conn.close()
-            giai_raw = giai_raw + (result[0] if result else 'don',)  # Add loai_dau to tuple
+            giai_raw = giai_raw + (
+                result[0] if result else 'don',
+                result[1] if result else 11,
+                result[2] if result else 15
+            )
             return render_template('sua_giai.html', giai=giai_raw)
         
+        TournamentModel.ensure_score_rule_columns()
         conn = psycopg2.connect(**DB_CONFIG)
         cursor = conn.cursor()
         
         loai_dau = request.form.get('loai_dau', 'don')
+        diem_cham = int(request.form.get('diem_cham') or 11)
+        diem_toi_da = int(request.form.get('diem_toi_da') or 15)
+        if diem_cham < 1:
+            diem_cham = 11
+        if diem_toi_da < diem_cham:
+            diem_toi_da = diem_cham
         DBLogger.log_info(f"Updating tournament {giai_id} with loai_dau={loai_dau}", user.get('email'), f'/sua-giai-dau/{giai_id}')
         
         cursor.execute("""
@@ -289,7 +305,8 @@ def sua_giai_dau(giai_id):
                 chi_phi_san_bai=%s, chi_phi_nuoc_noi=%s,
                 chi_phi_giai_thuong=%s, chi_phi_khac=%s,
                 ty_le_giai_1=%s, ty_le_giai_2=%s, ty_le_giai_3=%s,
-                so_nguoi_du_kien=%s, thoi_gian_bat_dau=%s, loai_dau=%s
+                so_nguoi_du_kien=%s, thoi_gian_bat_dau=%s, loai_dau=%s,
+                diem_cham=%s, diem_toi_da=%s
             WHERE id=%s;
         """, (
             request.form['ten_giai_dau'], 
@@ -305,6 +322,8 @@ def sua_giai_dau(giai_id):
             request.form.get('so_nguoi_du_kien', 10),
             request.form.get('thoi_gian_bat_dau', None),
             loai_dau,  # ← Make sure this is included!
+            diem_cham,
+            diem_toi_da,
             giai_id
         ))
         conn.commit()
@@ -558,7 +577,7 @@ def cap_nhat_ty_so(tran_id):
         cursor.close()
         conn.close()
         
-        MatchModel.update_score(tran_id, diem_a, diem_b, thu_tu_danh)
+        trang_thai = MatchModel.update_score(tran_id, diem_a, diem_b, thu_tu_danh)
         DBLogger.log_success(f"Match {tran_id} score updated: {diem_a}-{diem_b}-{thu_tu_danh}", user.get('email'), f'/tran-dau/{tran_id}/cap-nhat-ty-so')
         if request.is_json or request.headers.get('X-Requested-With') == 'fetch':
             return jsonify({
@@ -568,7 +587,7 @@ def cap_nhat_ty_so(tran_id):
                 'diem_a': diem_a,
                 'diem_b': diem_b,
                 'thu_tu_danh': thu_tu_danh,
-                'trang_thai': 'Đã xong' if diem_a is not None and diem_b is not None else 'Chưa diễn ra'
+                'trang_thai': trang_thai
             })
         return redirect(f'/giai-dau/{giai_id}/admin')
     except Exception as e:

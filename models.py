@@ -96,6 +96,25 @@ class TournamentModel:
     """Giải đấu"""
     
     @staticmethod
+    def ensure_score_rule_columns():
+        """Ensure tournament scoring rule columns exist."""
+        conn = psycopg2.connect(**DB_CONFIG)
+        cursor = conn.cursor()
+        try:
+            cursor.execute("""
+                ALTER TABLE giai_dau
+                ADD COLUMN IF NOT EXISTS diem_cham INTEGER DEFAULT 11,
+                ADD COLUMN IF NOT EXISTS diem_toi_da INTEGER DEFAULT 15;
+            """)
+            conn.commit()
+        except Exception as e:
+            conn.rollback()
+            raise e
+        finally:
+            cursor.close()
+            conn.close()
+
+    @staticmethod
     def get_details(giai_id):
         """Get tournament details"""
         conn = psycopg2.connect(**DB_CONFIG)
@@ -122,6 +141,22 @@ class TournamentModel:
         cursor.close()
         conn.close()
         return giải_list
+
+    @staticmethod
+    def get_score_rules(giai_id):
+        """Get scoring rules for tournament."""
+        TournamentModel.ensure_score_rule_columns()
+        conn = psycopg2.connect(**DB_CONFIG)
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT COALESCE(diem_cham, 11), COALESCE(diem_toi_da, 15)
+            FROM giai_dau
+            WHERE id = %s;
+        """, (giai_id,))
+        rules = cursor.fetchone()
+        cursor.close()
+        conn.close()
+        return rules or (11, 15)
 
 class DangKyGiaiModel:
     """Đăng ký giải (Registration)"""
@@ -294,10 +329,26 @@ class MatchModel:
     def update_score(tran_id, diem_a, diem_b, thu_tu_danh=2):
         """Update match score"""
         MatchModel.ensure_score_order_column()
+        TournamentModel.ensure_score_rule_columns()
         conn = psycopg2.connect(**DB_CONFIG)
         cursor = conn.cursor()
         try:
-            trang_thai = 'Đã xong' if (diem_a is not None and diem_b is not None) else 'Chưa diễn ra'
+            cursor.execute("""
+                SELECT COALESCE(g.diem_cham, 11), COALESCE(g.diem_toi_da, 15)
+                FROM tran_dau td
+                INNER JOIN giai_dau g ON td.giai_dau_id = g.id
+                WHERE td.id = %s;
+            """, (tran_id,))
+            rules = cursor.fetchone() or (11, 15)
+            diem_cham, diem_toi_da = int(rules[0]), int(rules[1])
+
+            trang_thai = 'Chưa diễn ra'
+            if diem_a is not None and diem_b is not None:
+                diem_cao = max(diem_a, diem_b)
+                chen_lech = abs(diem_a - diem_b)
+                if diem_cao >= diem_toi_da or (diem_cao >= diem_cham and chen_lech >= 2):
+                    trang_thai = 'Đã xong'
+
             thu_tu_danh = int(thu_tu_danh) if thu_tu_danh in (1, 2, '1', '2') else 2
             cursor.execute("""
                 UPDATE tran_dau
@@ -305,6 +356,7 @@ class MatchModel:
                 WHERE id=%s;
             """, (diem_a, diem_b, thu_tu_danh, trang_thai, tran_id))
             conn.commit()
+            return trang_thai
         except Exception as e:
             conn.rollback()
             raise e
@@ -317,6 +369,8 @@ class MatchModel:
         """Calculate ranking from matches"""
         bang = {}
         for m in matches:
+            if len(m) > 5 and m[5] != 'Đã xong':
+                continue
             doi_a, doi_b, d_a, d_b = m[1], m[2], m[3], m[4]
             for doi in [doi_a, doi_b]:
                 if doi not in bang:
