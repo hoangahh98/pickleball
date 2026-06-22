@@ -13,6 +13,8 @@ class DBLogger:
     def ensure_log_schema():
         if DBLogger._schema_ready:
             return
+        if DB_CONFIG_ERROR:
+            raise RuntimeError(DB_CONFIG_ERROR)
 
         conn = psycopg2.connect(**DB_CONFIG)
         cursor = conn.cursor()
@@ -84,6 +86,10 @@ class DBLogger:
     @staticmethod
     def _insert_log(level, message, user_email=None, route=None, method=None, status_code=None, context=None):
         try:
+            if DB_CONFIG_ERROR:
+                DBLogger._safe_console_log(RuntimeError(DB_CONFIG_ERROR), level, message)
+                return
+
             request_path = route
             request_method = method
             ip_address = None
@@ -117,6 +123,10 @@ class DBLogger:
     def log_exception(message, exc, user_email=None, route=None, method=None, status_code=500, context=None,
                       request_path=None, ip_address=None, user_agent=None):
         try:
+            if DB_CONFIG_ERROR:
+                DBLogger._safe_console_log(RuntimeError(DB_CONFIG_ERROR), "ERROR", message)
+                return
+
             DBLogger.ensure_log_schema()
             conn = psycopg2.connect(**DB_CONFIG)
             cursor = conn.cursor()
@@ -141,6 +151,10 @@ class DBLogger:
     def log_user_action(user_email=None, user_role=None, action=None, route=None, endpoint=None, method=None,
                         status_code=None, ip_address=None, user_agent=None, details=None):
         try:
+            if DB_CONFIG_ERROR:
+                DBLogger._safe_console_log(RuntimeError(DB_CONFIG_ERROR), "ACTION", action or route or "unknown")
+                return
+
             DBLogger.ensure_log_schema()
             conn = psycopg2.connect(**DB_CONFIG)
             cursor = conn.cursor()

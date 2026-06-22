@@ -1,5 +1,5 @@
 import os
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, unquote, urlparse
 
 try:
     from dotenv import load_dotenv
@@ -25,8 +25,8 @@ def _db_config_from_url(database_url):
     query = parse_qs(parsed.query)
     config = {
         "dbname": parsed.path.lstrip("/") or "postgres",
-        "user": parsed.username,
-        "password": parsed.password,
+        "user": unquote(parsed.username) if parsed.username else None,
+        "password": unquote(parsed.password) if parsed.password else None,
         "host": parsed.hostname,
         "port": str(parsed.port or 5432),
     }
