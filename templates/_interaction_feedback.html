@@ -28,8 +28,17 @@
         }
 
         const href = link.getAttribute('href') || '';
-        const isActionLink = /(xoa|dang-ky|chia-lich|cap-nhat|tao-admin)/.test(href);
-        if (!isActionLink) {
+        const target = link.getAttribute('target') || '';
+        const isLocalUiControl = href === '' ||
+            href === '#' ||
+            href.startsWith('#') ||
+            link.hasAttribute('download') ||
+            target === '_blank' ||
+            link.hasAttribute('data-bs-toggle') ||
+            link.hasAttribute('data-bs-target') ||
+            link.getAttribute('role') === 'tab';
+
+        if (isLocalUiControl) {
             return;
         }
 
