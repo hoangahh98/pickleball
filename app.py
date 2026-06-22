@@ -13,7 +13,7 @@ from db import db_cursor
 from logging_service import DBLogger, DBLogViewer
 import traceback
 import time
-from validators import normalize_vdv_form
+from validators import normalize_tournament_form, normalize_vdv_form
 from werkzeug.exceptions import HTTPException
 
 app = Flask(__name__)
@@ -116,6 +116,29 @@ def prepare_tournament_detail(giai_raw, registrations):
         players_for_calc.append(reformatted)
     
     return FinanceService.tinh_toan_dong_tien(giai_raw, players_for_calc)
+
+
+def _giai_tuple_from_form(giai_id, form_data):
+    return (
+        giai_id,
+        form_data.get('ten_giai_dau'),
+        form_data.get('so_luong_san'),
+        form_data.get('dia_diem'),
+        form_data.get('chi_phi_san_bai'),
+        form_data.get('chi_phi_nuoc_noi'),
+        form_data.get('chi_phi_giai_thuong'),
+        form_data.get('chi_phi_khac'),
+        form_data.get('ty_le_giai_1'),
+        form_data.get('ty_le_giai_2'),
+        form_data.get('ty_le_giai_3'),
+        form_data.get('so_nguoi_du_kien'),
+        form_data.get('thoi_gian_bat_dau'),
+        None,
+        None,
+        form_data.get('loai_dau'),
+        form_data.get('diem_cham'),
+        form_data.get('diem_toi_da'),
+    )
 
 
 @app.route('/doc-diem-giao-luu')
@@ -330,7 +353,11 @@ def them_giai_dau():
     """Tạo giải mới - ENSURE loai_dau is saved"""
     user = session.get('user', {})
     try:
-        loai_dau = request.form.get('loai_dau', 'don')
+        form_data, errors = normalize_tournament_form(request.form)
+        if errors:
+            return render_template('them_giai_dau.html', form_data=form_data, errors=errors), 400
+
+        loai_dau = form_data['loai_dau']
         DBLogger.log_info(f"Creating tournament with loai_dau={loai_dau}", user.get('email'), '/them-giai-dau')
         
         with db_cursor(commit=True) as cursor:
@@ -341,21 +368,21 @@ def them_giai_dau():
                      ty_le_giai_1, ty_le_giai_2, ty_le_giai_3, so_nguoi_du_kien, thoi_gian_bat_dau, loai_dau)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
             """, (
-                request.form['ten_giai_dau'],
-                request.form['so_luong_san'],
-                request.form.get('dia_diem', ''),
-                request.form.get('chi_phi_san_bai', 0),
-                request.form.get('chi_phi_nuoc_noi', 0),
-                request.form.get('chi_phi_giai_thuong', 0),
-                request.form.get('chi_phi_khac', 0),
-                request.form.get('ty_le_giai_1', 5),
-                request.form.get('ty_le_giai_2', 3),
-                request.form.get('ty_le_giai_3', 2),
-                request.form.get('so_nguoi_du_kien', 10),
-                request.form.get('thoi_gian_bat_dau', None),
+                form_data['ten_giai_dau'],
+                form_data['so_luong_san'],
+                form_data['dia_diem'],
+                form_data['chi_phi_san_bai'],
+                form_data['chi_phi_nuoc_noi'],
+                form_data['chi_phi_giai_thuong'],
+                form_data['chi_phi_khac'],
+                form_data['ty_le_giai_1'],
+                form_data['ty_le_giai_2'],
+                form_data['ty_le_giai_3'],
+                form_data['so_nguoi_du_kien'],
+                form_data['thoi_gian_bat_dau'],
                 loai_dau
             ))
-        DBLogger.log_success(f"Tournament created: {request.form['ten_giai_dau']} ({loai_dau})", user.get('email'), '/them-giai-dau')
+        DBLogger.log_success(f"Tournament created: {form_data['ten_giai_dau']} ({loai_dau})", user.get('email'), '/them-giai-dau')
         return redirect('/')
     except Exception as e:
         DBLogger.log_error(f"Error creating tournament: {str(e)}", user.get('email'), '/them-giai-dau', context=traceback.format_exc())
@@ -388,13 +415,13 @@ def sua_giai_dau(giai_id):
             return render_template('sua_giai.html', giai=giai_raw)
         
         TournamentModel.ensure_score_rule_columns()
-        loai_dau = request.form.get('loai_dau', 'don')
-        diem_cham = int(request.form.get('diem_cham') or 11)
-        diem_toi_da = int(request.form.get('diem_toi_da') or 15)
-        if diem_cham < 1:
-            diem_cham = 11
-        if diem_toi_da < diem_cham:
-            diem_toi_da = diem_cham
+        form_data, errors = normalize_tournament_form(request.form)
+        if errors:
+            return render_template('sua_giai.html', giai=_giai_tuple_from_form(giai_id, form_data), errors=errors), 400
+
+        loai_dau = form_data['loai_dau']
+        diem_cham = form_data['diem_cham']
+        diem_toi_da = form_data['diem_toi_da']
         DBLogger.log_info(f"Updating tournament {giai_id} with loai_dau={loai_dau}", user.get('email'), f'/sua-giai-dau/{giai_id}')
         
         with db_cursor(commit=True) as cursor:
@@ -408,18 +435,18 @@ def sua_giai_dau(giai_id):
                     diem_cham=%s, diem_toi_da=%s
                 WHERE id=%s;
             """, (
-                request.form['ten_giai_dau'],
-                request.form['so_luong_san'],
-                request.form.get('dia_diem'),
-                request.form.get('chi_phi_san_bai', 0),
-                request.form.get('chi_phi_nuoc_noi', 0),
-                request.form.get('chi_phi_giai_thuong', 0),
-                request.form.get('chi_phi_khac', 0),
-                request.form.get('ty_le_giai_1', 5),
-                request.form.get('ty_le_giai_2', 3),
-                request.form.get('ty_le_giai_3', 2),
-                request.form.get('so_nguoi_du_kien', 10),
-                request.form.get('thoi_gian_bat_dau', None),
+                form_data['ten_giai_dau'],
+                form_data['so_luong_san'],
+                form_data['dia_diem'],
+                form_data['chi_phi_san_bai'],
+                form_data['chi_phi_nuoc_noi'],
+                form_data['chi_phi_giai_thuong'],
+                form_data['chi_phi_khac'],
+                form_data['ty_le_giai_1'],
+                form_data['ty_le_giai_2'],
+                form_data['ty_le_giai_3'],
+                form_data['so_nguoi_du_kien'],
+                form_data['thoi_gian_bat_dau'],
                 loai_dau,
                 diem_cham,
                 diem_toi_da,

@@ -18,29 +18,38 @@
     <div class="container" style="max-width: 600px;">
         <div class="card shadow">
             <div class="card-body p-4">
+                {% if errors %}
+                <div class="alert alert-danger">
+                    <ul class="mb-0">
+                        {% for error in errors %}
+                        <li>{{ error }}</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+                {% endif %}
                 <form method="POST" action="/them-giai-dau">
                     <!-- TÊN GIẢI -->
                     <div class="mb-3">
-                        <label class="form-label"><strong>📝 Tên Giải</strong></label>
-                        <input type="text" name="ten_giai_dau" class="form-control" required>
+                        <label class="form-label"><strong>📝 Tên Giải <span class="text-danger">*</span></strong></label>
+                        <input type="text" name="ten_giai_dau" class="form-control" value="{{ form_data.get('ten_giai_dau', '') if form_data else '' }}" required>
                     </div>
 
                     <!-- ĐỊA ĐIỂM -->
                     <div class="mb-3">
                         <label class="form-label"><strong>📍 Địa Điểm</strong></label>
-                        <input type="text" name="dia_diem" class="form-control">
+                        <input type="text" name="dia_diem" class="form-control" value="{{ form_data.get('dia_diem', '') if form_data else '' }}">
                     </div>
 
                     <!-- THỜI GIAN -->
                     <div class="mb-3">
                         <label class="form-label"><strong>⏰ Thời Gian Bắt Đầu</strong></label>
-                        <input type="datetime-local" name="thoi_gian_bat_dau" class="form-control">
+                        <input type="datetime-local" name="thoi_gian_bat_dau" class="form-control" value="{{ form_data.get('thoi_gian_bat_dau', '') if form_data else '' }}">
                     </div>
 
                     <!-- SỐ SÂN -->
                     <div class="mb-3">
-                        <label class="form-label"><strong>🏟️ Số Sân</strong></label>
-                        <input type="number" name="so_luong_san" class="form-control" value="1" required>
+                        <label class="form-label"><strong>🏟️ Số Sân <span class="text-danger">*</span></strong></label>
+                        <input type="number" name="so_luong_san" class="form-control" value="{{ form_data.get('so_luong_san', 1) if form_data else 1 }}" required>
                     </div>
 
                     <!-- HÌNH THỨC THI ĐẤU -->
@@ -57,8 +66,8 @@
 
                     <!-- SỐ NGƯỜI DỰ KIẾN -->
                     <div class="mb-3">
-                        <label class="form-label"><strong>👥 Số Người Dự Kiến</strong></label>
-                        <input type="number" name="so_nguoi_du_kien" class="form-control" value="10" required>
+                        <label class="form-label"><strong>👥 Số Người Dự Kiến <span class="text-danger">*</span></strong></label>
+                        <input type="number" name="so_nguoi_du_kien" class="form-control" value="{{ form_data.get('so_nguoi_du_kien', 10) if form_data else 10 }}" required>
                     </div>
 
                     <!-- CHI PHÍ -->

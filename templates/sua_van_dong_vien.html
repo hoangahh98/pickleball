@@ -29,12 +29,12 @@
                 {% endif %}
                 <form action="/van-dong-vien/{{ vdv[0] }}/sua" method="POST">
                     <div class="mb-3">
-                        <label class="form-label fw-bold">Tên VĐV *</label>
+                        <label class="form-label fw-bold">Tên VĐV <span class="text-danger">*</span></label>
                         <input type="text" class="form-control" name="ten_vdv" value="{{ vdv[1] }}" required>
                     </div>
 
                     <div class="mb-3">
-                        <label class="form-label fw-bold">Email *</label>
+                        <label class="form-label fw-bold">Email <span class="text-danger">*</span></label>
                         <input type="email" class="form-control" name="email" value="{{ vdv[3] }}" required>
                     </div>
 

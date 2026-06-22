@@ -2,6 +2,7 @@ import re
 
 
 VALID_TRINH_DO = {"A", "B", "C", "D"}
+VALID_LOAI_DAU = {"don", "doi"}
 EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 
@@ -26,5 +27,78 @@ def normalize_vdv_form(form):
         "email": email,
         "trinh_do": trinh_do if trinh_do in VALID_TRINH_DO else "C",
         "ghi_chu": ghi_chu,
+    }
+    return data, errors
+
+
+def _parse_int_field(value, default, minimum=None, maximum=None):
+    raw = (str(value).strip() if value is not None else "")
+    if raw == "":
+        number = default
+    else:
+        number = int(raw)
+    if minimum is not None and number < minimum:
+        number = minimum
+    if maximum is not None and number > maximum:
+        number = maximum
+    return number
+
+
+def _parse_money_field(value):
+    return _parse_int_field(value, 0, minimum=0)
+
+
+def normalize_tournament_form(form):
+    errors = []
+    ten_giai_dau = (form.get("ten_giai_dau") or "").strip()
+    dia_diem = (form.get("dia_diem") or "").strip()
+    thoi_gian_bat_dau = (form.get("thoi_gian_bat_dau") or "").strip() or None
+    loai_dau = (form.get("loai_dau") or "don").strip()
+
+    if not ten_giai_dau:
+        errors.append("Tên giải không được để trống.")
+    if loai_dau not in VALID_LOAI_DAU:
+        errors.append("Hình thức thi đấu không hợp lệ.")
+        loai_dau = "don"
+
+    numeric_fields = {}
+    try:
+        numeric_fields["so_luong_san"] = _parse_int_field(form.get("so_luong_san"), 1, minimum=1)
+        numeric_fields["so_nguoi_du_kien"] = _parse_int_field(form.get("so_nguoi_du_kien"), 10, minimum=1)
+        numeric_fields["diem_cham"] = _parse_int_field(form.get("diem_cham"), 11, minimum=1, maximum=99)
+        numeric_fields["diem_toi_da"] = _parse_int_field(form.get("diem_toi_da"), 15, minimum=1, maximum=99)
+        numeric_fields["chi_phi_san_bai"] = _parse_money_field(form.get("chi_phi_san_bai"))
+        numeric_fields["chi_phi_nuoc_noi"] = _parse_money_field(form.get("chi_phi_nuoc_noi"))
+        numeric_fields["chi_phi_giai_thuong"] = _parse_money_field(form.get("chi_phi_giai_thuong"))
+        numeric_fields["chi_phi_khac"] = _parse_money_field(form.get("chi_phi_khac"))
+        numeric_fields["ty_le_giai_1"] = _parse_int_field(form.get("ty_le_giai_1"), 5, minimum=0)
+        numeric_fields["ty_le_giai_2"] = _parse_int_field(form.get("ty_le_giai_2"), 3, minimum=0)
+        numeric_fields["ty_le_giai_3"] = _parse_int_field(form.get("ty_le_giai_3"), 2, minimum=0)
+    except ValueError:
+        errors.append("Các trường số chỉ được nhập số hợp lệ.")
+        numeric_fields = {
+            "so_luong_san": 1,
+            "so_nguoi_du_kien": 10,
+            "diem_cham": 11,
+            "diem_toi_da": 15,
+            "chi_phi_san_bai": 0,
+            "chi_phi_nuoc_noi": 0,
+            "chi_phi_giai_thuong": 0,
+            "chi_phi_khac": 0,
+            "ty_le_giai_1": 5,
+            "ty_le_giai_2": 3,
+            "ty_le_giai_3": 2,
+        }
+
+    if numeric_fields["diem_toi_da"] < numeric_fields["diem_cham"]:
+        errors.append("Max điểm phải lớn hơn hoặc bằng điểm chạm.")
+        numeric_fields["diem_toi_da"] = numeric_fields["diem_cham"]
+
+    data = {
+        "ten_giai_dau": ten_giai_dau,
+        "dia_diem": dia_diem,
+        "thoi_gian_bat_dau": thoi_gian_bat_dau,
+        "loai_dau": loai_dau,
+        **numeric_fields,
     }
     return data, errors

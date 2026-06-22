@@ -13,7 +13,7 @@
             <div class="card-body">
                 <form action="/giai-dau/{{ giai_id }}/sua-nguoi-choi/{{ nguoi_choi[0] }}" method="POST">
                     <div class="mb-3">
-                        <label class="form-label">Tên người chơi / Đội:</label>
+                        <label class="form-label">Tên người chơi / Đội <span class="text-danger">*</span></label>
                         <input type="text" name="ten_nguoi_choi" class="form-control" value="{{ nguoi_choi[2] }}" required>
                     </div>
                     <div class="mb-3">

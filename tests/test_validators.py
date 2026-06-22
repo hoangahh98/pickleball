@@ -1,6 +1,6 @@
 import unittest
 
-from validators import normalize_vdv_form
+from validators import normalize_tournament_form, normalize_vdv_form
 
 
 class NormalizeVdvFormTest(unittest.TestCase):
@@ -29,6 +29,34 @@ class NormalizeVdvFormTest(unittest.TestCase):
         self.assertIn("Tên VĐV không được để trống.", errors)
         self.assertIn("Email không đúng định dạng.", errors)
         self.assertIn("Trình độ chỉ được chọn A, B, C hoặc D.", errors)
+
+
+class NormalizeTournamentFormTest(unittest.TestCase):
+    def test_allows_blank_optional_time_as_none(self):
+        data, errors = normalize_tournament_form({
+            "ten_giai_dau": "  Giai dau  ",
+            "so_luong_san": "2",
+            "so_nguoi_du_kien": "16",
+            "thoi_gian_bat_dau": "",
+            "diem_cham": "",
+            "diem_toi_da": "",
+        })
+
+        self.assertEqual(errors, [])
+        self.assertEqual(data["ten_giai_dau"], "Giai dau")
+        self.assertIsNone(data["thoi_gian_bat_dau"])
+        self.assertEqual(data["diem_cham"], 11)
+        self.assertEqual(data["diem_toi_da"], 15)
+
+    def test_rejects_missing_name_and_bad_number(self):
+        data, errors = normalize_tournament_form({
+            "ten_giai_dau": " ",
+            "so_luong_san": "abc",
+        })
+
+        self.assertEqual(data["so_luong_san"], 1)
+        self.assertIn("Tên giải không được để trống.", errors)
+        self.assertIn("Các trường số chỉ được nhập số hợp lệ.", errors)
 
 
 if __name__ == "__main__":

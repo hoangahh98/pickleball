@@ -13,13 +13,13 @@
             <div class="card-body">
                 <form action="/giai-dau/{{ giai_id }}/them-nguoi-choi" method="POST">
                     <div class="mb-3">
-                        <label class="form-label fw-bold">👤 Tên người chơi / Tên đội:</label>
+                        <label class="form-label fw-bold">👤 Tên người chơi / Tên đội <span class="text-danger">*</span></label>
                         <input type="text" name="ten_nguoi_choi" class="form-control" placeholder="VD: Nguyễn Văn A" required>
                     </div>
 
                     <div class="row g-2 mb-3">
                         <div class="col-md-6">
-                            <label class="form-label fw-bold">⭐ Trình độ:</label>
+                            <label class="form-label fw-bold">⭐ Trình độ <span class="text-danger">*</span></label>
                             <select name="trinh_do" class="form-select" required>
                                 <option value="">-- Chọn trình độ --</option>
                                 <option value="A">Trình A (Mới bắt đầu)</option>

@@ -67,7 +67,7 @@
                 <form action="/them-giai-dau" method="POST">
                     <div class="modal-body">
                         <div class="mb-3">
-                            <label class="form-label">Tên Giải *</label>
+                            <label class="form-label">Tên Giải <span class="text-danger">*</span></label>
                             <input type="text" class="form-control" name="ten_giai_dau" required>
                         </div>
                         <div class="mb-3">
@@ -75,8 +75,8 @@
                             <input type="text" class="form-control" name="dia_diem">
                         </div>
                         <div class="mb-3">
-                            <label class="form-label">Số Sân</label>
-                            <input type="number" class="form-control" name="so_luong_san" value="1">
+                            <label class="form-label">Số Sân <span class="text-danger">*</span></label>
+                            <input type="number" class="form-control" name="so_luong_san" value="1" required>
                         </div>
                         <div class="mb-3">
                             <label class="form-label">Hình Thức Thi Đấu</label>
@@ -89,8 +89,8 @@
                             </div>
                         </div>
                         <div class="mb-3">
-                            <label class="form-label">Dự Kiến VĐV</label>
-                            <input type="number" class="form-control" name="so_nguoi_du_kien" value="10">
+                            <label class="form-label">Dự Kiến VĐV <span class="text-danger">*</span></label>
+                            <input type="number" class="form-control" name="so_nguoi_du_kien" value="10" required>
                         </div>
                     </div>
                     <div class="modal-footer">

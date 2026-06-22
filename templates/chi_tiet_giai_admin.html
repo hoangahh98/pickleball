@@ -296,6 +296,7 @@ BTC</textarea>
                         {% else %}
                             <form action="/giai-dau/{{ giai.id }}/dang-ky" method="POST" class="mt-2">
                                 {% set slots_left = (giai.so_nguoi_du_kien - registrations|length) if giai.so_nguoi_du_kien else 9999 %}
+                                <label class="form-label small fw-semibold mb-1" for="playerMultiSelect">Chọn VĐV <span class="text-danger">*</span></label>
                                 <select class="form-select form-select-sm" id="playerMultiSelect" name="van_dong_vien_ids" multiple size="6" required data-slots-left="{{ slots_left }}">
                                     {% for vdv in giai.all_vdv %}
                                         {% if vdv[0] not in registered_ids %}

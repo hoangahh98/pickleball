@@ -18,10 +18,19 @@
     <div class="container" style="max-width: 600px;">
         <div class="card shadow">
             <div class="card-body p-4">
+                {% if errors %}
+                <div class="alert alert-danger">
+                    <ul class="mb-0">
+                        {% for error in errors %}
+                        <li>{{ error }}</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+                {% endif %}
                 <form method="POST">
                     <!-- TÊN GIẢI -->
                     <div class="mb-3">
-                        <label class="form-label"><strong>📝 Tên Giải</strong></label>
+                        <label class="form-label"><strong>📝 Tên Giải <span class="text-danger">*</span></strong></label>
                         <input type="text" name="ten_giai_dau" class="form-control" value="{{ giai[1] }}" required>
                     </div>
 
@@ -34,12 +43,12 @@
                     <!-- THỜI GIAN -->
                     <div class="mb-3">
                         <label class="form-label"><strong>⏰ Thời Gian Bắt Đầu</strong></label>
-                        <input type="datetime-local" name="thoi_gian_bat_dau" class="form-control" value="{% if giai[12] %}{{ giai[12].strftime('%Y-%m-%dT%H:%M') }}{% endif %}">
+                        <input type="datetime-local" name="thoi_gian_bat_dau" class="form-control" value="{% if giai[12] and giai[12].strftime is defined %}{{ giai[12].strftime('%Y-%m-%dT%H:%M') }}{% elif giai[12] %}{{ giai[12] }}{% endif %}">
                     </div>
 
                     <!-- SỐ SÂN -->
                     <div class="mb-3">
-                        <label class="form-label"><strong>🏟️ Số Sân</strong></label>
+                        <label class="form-label"><strong>🏟️ Số Sân <span class="text-danger">*</span></strong></label>
                         <input type="number" name="so_luong_san" class="form-control" value="{{ giai[2] }}" required>
                     </div>
 
@@ -61,13 +70,13 @@
                             <h6 class="mb-3"><strong>🎯 Luật Điểm</strong></h6>
                             <div class="row g-2">
                                 <div class="col-md-6">
-                                    <label class="form-label">Đánh chạm điểm</label>
+                                    <label class="form-label">Đánh chạm điểm <span class="text-danger">*</span></label>
                                     <input type="number" name="diem_cham" class="form-control"
                                            value="{{ giai[16] if giai|length > 16 and giai[16] else 11 }}"
                                            min="1" max="99" required>
                                 </div>
                                 <div class="col-md-6">
-                                    <label class="form-label">Max điểm</label>
+                                    <label class="form-label">Max điểm <span class="text-danger">*</span></label>
                                     <input type="number" name="diem_toi_da" class="form-control"
                                            value="{{ giai[17] if giai|length > 17 and giai[17] else 15 }}"
                                            min="1" max="99" required>
@@ -81,7 +90,7 @@
 
                     <!-- SỐ NGƯỜI DỰ KIẾN -->
                     <div class="mb-3">
-                        <label class="form-label"><strong>👥 Số Người Dự Kiến</strong></label>
+                        <label class="form-label"><strong>👥 Số Người Dự Kiến <span class="text-danger">*</span></strong></label>
                         <input type="number" name="so_nguoi_du_kien" class="form-control" value="{{ giai[11] }}" required>
                     </div>
 
