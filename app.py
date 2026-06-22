@@ -3,7 +3,7 @@ Complete App with Database Logging
 All logs stored in app_logs table
 """
 
-from flask import Flask, render_template, request, redirect, url_for, session, jsonify, g
+from flask import Flask, render_template, request, redirect, url_for, session, jsonify, g, send_from_directory, make_response
 from models import VanDongVienModel, TournamentModel, DangKyGiaiModel, MatchModel
 from services import FinanceService
 from knockout_logic import MatchSchedulerService
@@ -18,6 +18,15 @@ from werkzeug.exceptions import HTTPException
 
 app = Flask(__name__)
 app.secret_key = FLASK_SECRET_KEY
+
+
+@app.route('/service-worker.js')
+def service_worker():
+    response = make_response(send_from_directory(app.static_folder, 'service-worker.js'))
+    response.headers['Content-Type'] = 'application/javascript'
+    response.headers['Service-Worker-Allowed'] = '/'
+    response.headers['Cache-Control'] = 'no-cache'
+    return response
 
 
 def _safe_request_details():
