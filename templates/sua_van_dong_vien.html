@@ -14,9 +14,18 @@
         </div>
     </nav>
 
-    <div class="container mt-4" style="max-width: 500px;">
+    <div class="container mt-4" style="max-width: 560px;">
         <div class="card shadow-sm">
             <div class="card-body">
+                {% if errors %}
+                <div class="alert alert-danger">
+                    <ul class="mb-0">
+                        {% for error in errors %}
+                        <li>{{ error }}</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+                {% endif %}
                 <form action="/van-dong-vien/{{ vdv[0] }}/sua" method="POST">
                     <div class="mb-3">
                         <label class="form-label fw-bold">Tên VĐV *</label>

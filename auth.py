@@ -3,10 +3,9 @@ Hệ thống xác thực cho Admin & VĐV
 - Admin: email + password
 - VĐV: email + password (123456789)
 """
-import psycopg2
-from config import DB_CONFIG
+from db import db_cursor
 from functools import wraps
-from flask import session, redirect, url_for, request
+from flask import session, redirect, url_for
 
 class AuthService:
     @staticmethod
@@ -23,12 +22,9 @@ class AuthService:
     @staticmethod
     def login_admin(email, password):
         """Login cho admin"""
-        conn = psycopg2.connect(**DB_CONFIG)
-        cursor = conn.cursor()
-        cursor.execute("SELECT id, email, password FROM users WHERE email = %s;", (email,))
-        user = cursor.fetchone()
-        cursor.close()
-        conn.close()
+        with db_cursor() as cursor:
+            cursor.execute("SELECT id, email, password FROM users WHERE lower(email) = lower(%s);", (email,))
+            user = cursor.fetchone()
 
         if not user:
             return None, "Email không tồn tại"
@@ -41,29 +37,18 @@ class AuthService:
     @staticmethod
     def register_admin(email, password):
         """Tạo tài khoản admin (chỉ cấu hình lần đầu)"""
-        conn = psycopg2.connect(**DB_CONFIG)
-        cursor = conn.cursor()
-        
-        # Kiểm tra email đã tồn tại
-        cursor.execute("SELECT id FROM users WHERE email = %s;", (email,))
-        if cursor.fetchone():
-            cursor.close()
-            conn.close()
-            return False, "Email đã tồn tại"
-        
-        # Thêm admin mới
-        hashed = AuthService.hash_password(password)
         try:
-            cursor.execute("""
-                INSERT INTO users (email, password, role) VALUES (%s, %s, %s);
-            """, (email, hashed, "admin"))
-            conn.commit()
-            cursor.close()
-            conn.close()
+            with db_cursor(commit=True) as cursor:
+                cursor.execute("SELECT id FROM users WHERE lower(email) = lower(%s);", (email,))
+                if cursor.fetchone():
+                    return False, "Email đã tồn tại"
+
+                hashed = AuthService.hash_password(password)
+                cursor.execute("""
+                    INSERT INTO users (email, password, role) VALUES (%s, %s, %s);
+                """, (email.strip().lower(), hashed, "admin"))
             return True, "Tạo admin thành công"
         except Exception as e:
-            cursor.close()
-            conn.close()
             return False, str(e)
 
 

@@ -8,11 +8,12 @@ from models import VanDongVienModel, TournamentModel, DangKyGiaiModel, MatchMode
 from services import FinanceService
 from knockout_logic import MatchSchedulerService
 from auth import AuthService, login_required, admin_required
-from config import DB_CONFIG, FLASK_SECRET_KEY, FLASK_SECRET_KEY_ERROR, BASE_URL
+from config import FLASK_SECRET_KEY, FLASK_SECRET_KEY_ERROR, BASE_URL
+from db import db_cursor
 from logging_service import DBLogger, DBLogViewer
-import psycopg2
 import traceback
 import time
+from validators import normalize_vdv_form
 from werkzeug.exceptions import HTTPException
 
 app = Flask(__name__)
@@ -129,22 +130,19 @@ def trang_chu():
         return redirect(url_for('vdv_dashboard'))
     
     try:
-        conn = psycopg2.connect(**DB_CONFIG)
-        cursor = conn.cursor()
-        cursor.execute("""
-            SELECT g.id, g.ten_giai_dau, g.so_luong_san, g.dia_diem, 
-                   g.chi_phi_san_bai, g.chi_phi_nuoc_noi, g.chi_phi_giai_thuong, g.chi_phi_khac, 
-                   g.ty_le_giai_1, g.ty_le_giai_2, g.ty_le_giai_3, g.so_nguoi_du_kien,
-                   g.thoi_gian_bat_dau, g.banner_image, g.qr_image,
-                   COUNT(dkg.id) as so_luong_nguoi
-            FROM giai_dau g
-            LEFT JOIN dang_ky_giai dkg ON g.id = dkg.giai_dau_id
-            GROUP BY g.id
-            ORDER BY g.id DESC;
-        """)
-        rows = cursor.fetchall()
-        cursor.close()
-        conn.close()
+        with db_cursor() as cursor:
+            cursor.execute("""
+                SELECT g.id, g.ten_giai_dau, g.so_luong_san, g.dia_diem,
+                       g.chi_phi_san_bai, g.chi_phi_nuoc_noi, g.chi_phi_giai_thuong, g.chi_phi_khac,
+                       g.ty_le_giai_1, g.ty_le_giai_2, g.ty_le_giai_3, g.so_nguoi_du_kien,
+                       g.thoi_gian_bat_dau, g.banner_image, g.qr_image,
+                       COUNT(dkg.id) as so_luong_nguoi
+                FROM giai_dau g
+                LEFT JOIN dang_ky_giai dkg ON g.id = dkg.giai_dau_id
+                GROUP BY g.id
+                ORDER BY g.id DESC;
+            """)
+            rows = cursor.fetchall()
         
         danh_sach_giai = []
         for row in rows:
@@ -245,13 +243,19 @@ def them_van_dong_vien():
     user = session.get('user', {})
     try:
         if request.method == 'GET':
-            return render_template('them_van_dong_vien.html')
-        
-        ten_vdv = request.form['ten_vdv']
-        trinh_do = request.form.get('trinh_do', 'C')
-        email = request.form['email']
-        ghi_chu = request.form.get('ghi_chu', '')
-        
+            return render_template('them_van_dong_vien.html', form_data={}, errors=[])
+
+        form_data, errors = normalize_vdv_form(request.form)
+        if not errors and VanDongVienModel.email_exists(form_data['email']):
+            errors.append("Email đã được dùng cho VĐV khác.")
+        if errors:
+            return render_template('them_van_dong_vien.html', form_data=form_data, errors=errors), 400
+
+        ten_vdv = form_data['ten_vdv']
+        trinh_do = form_data['trinh_do']
+        email = form_data['email']
+        ghi_chu = form_data['ghi_chu']
+
         VanDongVienModel.create(ten_vdv, trinh_do, email, ghi_chu)
         DBLogger.log_success(f"VĐV created: {ten_vdv}", user.get('email'), '/van-dong-vien/them')
         return redirect('/van-dong-vien')
@@ -269,13 +273,24 @@ def sua_van_dong_vien(vdv_id):
             vdv = VanDongVienModel.get_by_id(vdv_id)
             if not vdv:
                 return "Không tìm thấy", 404
-            return render_template('sua_van_dong_vien.html', vdv=vdv)
-        
-        ten_vdv = request.form['ten_vdv']
-        trinh_do = request.form.get('trinh_do', 'C')
-        email = request.form['email']
-        ghi_chu = request.form.get('ghi_chu', '')
-        
+            return render_template('sua_van_dong_vien.html', vdv=vdv, errors=[])
+
+        vdv = VanDongVienModel.get_by_id(vdv_id)
+        if not vdv:
+            return "Không tìm thấy", 404
+
+        form_data, errors = normalize_vdv_form(request.form)
+        if not errors and VanDongVienModel.email_exists(form_data['email'], exclude_id=vdv_id):
+            errors.append("Email đã được dùng cho VĐV khác.")
+        if errors:
+            vdv_form = (vdv_id, form_data['ten_vdv'], form_data['trinh_do'], form_data['email'], None, form_data['ghi_chu'])
+            return render_template('sua_van_dong_vien.html', vdv=vdv_form, errors=errors), 400
+
+        ten_vdv = form_data['ten_vdv']
+        trinh_do = form_data['trinh_do']
+        email = form_data['email']
+        ghi_chu = form_data['ghi_chu']
+
         VanDongVienModel.update(vdv_id, ten_vdv, trinh_do, email, ghi_chu)
         DBLogger.log_success(f"VĐV {vdv_id} updated: {ten_vdv}", user.get('email'), f'/van-dong-vien/{vdv_id}/sua')
         return redirect('/van-dong-vien')
@@ -306,36 +321,31 @@ def them_giai_dau():
     """Tạo giải mới - ENSURE loai_dau is saved"""
     user = session.get('user', {})
     try:
-        conn = psycopg2.connect(**DB_CONFIG)
-        cursor = conn.cursor()
-        
         loai_dau = request.form.get('loai_dau', 'don')
         DBLogger.log_info(f"Creating tournament with loai_dau={loai_dau}", user.get('email'), '/them-giai-dau')
         
-        cursor.execute("""
-            INSERT INTO giai_dau 
-                (ten_giai_dau, so_luong_san, dia_diem,
-                 chi_phi_san_bai, chi_phi_nuoc_noi, chi_phi_giai_thuong, chi_phi_khac,
-                 ty_le_giai_1, ty_le_giai_2, ty_le_giai_3, so_nguoi_du_kien, thoi_gian_bat_dau, loai_dau)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
-        """, (
-            request.form['ten_giai_dau'], 
-            request.form['so_luong_san'],
-            request.form.get('dia_diem', ''),
-            request.form.get('chi_phi_san_bai', 0), 
-            request.form.get('chi_phi_nuoc_noi', 0),
-            request.form.get('chi_phi_giai_thuong', 0), 
-            request.form.get('chi_phi_khac', 0),
-            request.form.get('ty_le_giai_1', 5), 
-            request.form.get('ty_le_giai_2', 3),
-            request.form.get('ty_le_giai_3', 2), 
-            request.form.get('so_nguoi_du_kien', 10),
-            request.form.get('thoi_gian_bat_dau', None),
-            loai_dau  # ← Make sure this is included!
-        ))
-        conn.commit()
-        cursor.close()
-        conn.close()
+        with db_cursor(commit=True) as cursor:
+            cursor.execute("""
+                INSERT INTO giai_dau
+                    (ten_giai_dau, so_luong_san, dia_diem,
+                     chi_phi_san_bai, chi_phi_nuoc_noi, chi_phi_giai_thuong, chi_phi_khac,
+                     ty_le_giai_1, ty_le_giai_2, ty_le_giai_3, so_nguoi_du_kien, thoi_gian_bat_dau, loai_dau)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
+            """, (
+                request.form['ten_giai_dau'],
+                request.form['so_luong_san'],
+                request.form.get('dia_diem', ''),
+                request.form.get('chi_phi_san_bai', 0),
+                request.form.get('chi_phi_nuoc_noi', 0),
+                request.form.get('chi_phi_giai_thuong', 0),
+                request.form.get('chi_phi_khac', 0),
+                request.form.get('ty_le_giai_1', 5),
+                request.form.get('ty_le_giai_2', 3),
+                request.form.get('ty_le_giai_3', 2),
+                request.form.get('so_nguoi_du_kien', 10),
+                request.form.get('thoi_gian_bat_dau', None),
+                loai_dau
+            ))
         DBLogger.log_success(f"Tournament created: {request.form['ten_giai_dau']} ({loai_dau})", user.get('email'), '/them-giai-dau')
         return redirect('/')
     except Exception as e:
@@ -354,16 +364,13 @@ def sua_giai_dau(giai_id):
             if not giai_raw:
                 return "Không tìm thấy", 404
             # ← Get loai_dau from database
-            conn = psycopg2.connect(**DB_CONFIG)
-            cursor = conn.cursor()
-            cursor.execute("""
-                SELECT loai_dau, COALESCE(diem_cham, 11), COALESCE(diem_toi_da, 15)
-                FROM giai_dau
-                WHERE id = %s;
-            """, (giai_id,))
-            result = cursor.fetchone()
-            cursor.close()
-            conn.close()
+            with db_cursor() as cursor:
+                cursor.execute("""
+                    SELECT loai_dau, COALESCE(diem_cham, 11), COALESCE(diem_toi_da, 15)
+                    FROM giai_dau
+                    WHERE id = %s;
+                """, (giai_id,))
+                result = cursor.fetchone()
             giai_raw = giai_raw + (
                 result[0] if result else 'don',
                 result[1] if result else 11,
@@ -372,9 +379,6 @@ def sua_giai_dau(giai_id):
             return render_template('sua_giai.html', giai=giai_raw)
         
         TournamentModel.ensure_score_rule_columns()
-        conn = psycopg2.connect(**DB_CONFIG)
-        cursor = conn.cursor()
-        
         loai_dau = request.form.get('loai_dau', 'don')
         diem_cham = int(request.form.get('diem_cham') or 11)
         diem_toi_da = int(request.form.get('diem_toi_da') or 15)
@@ -384,36 +388,34 @@ def sua_giai_dau(giai_id):
             diem_toi_da = diem_cham
         DBLogger.log_info(f"Updating tournament {giai_id} with loai_dau={loai_dau}", user.get('email'), f'/sua-giai-dau/{giai_id}')
         
-        cursor.execute("""
-            UPDATE giai_dau SET
-                ten_giai_dau=%s, so_luong_san=%s, dia_diem=%s,
-                chi_phi_san_bai=%s, chi_phi_nuoc_noi=%s,
-                chi_phi_giai_thuong=%s, chi_phi_khac=%s,
-                ty_le_giai_1=%s, ty_le_giai_2=%s, ty_le_giai_3=%s,
-                so_nguoi_du_kien=%s, thoi_gian_bat_dau=%s, loai_dau=%s,
-                diem_cham=%s, diem_toi_da=%s
-            WHERE id=%s;
-        """, (
-            request.form['ten_giai_dau'], 
-            request.form['so_luong_san'],
-            request.form.get('dia_diem'), 
-            request.form.get('chi_phi_san_bai', 0),
-            request.form.get('chi_phi_nuoc_noi', 0), 
-            request.form.get('chi_phi_giai_thuong', 0),
-            request.form.get('chi_phi_khac', 0), 
-            request.form.get('ty_le_giai_1', 5),
-            request.form.get('ty_le_giai_2', 3), 
-            request.form.get('ty_le_giai_3', 2),
-            request.form.get('so_nguoi_du_kien', 10),
-            request.form.get('thoi_gian_bat_dau', None),
-            loai_dau,  # ← Make sure this is included!
-            diem_cham,
-            diem_toi_da,
-            giai_id
-        ))
-        conn.commit()
-        cursor.close()
-        conn.close()
+        with db_cursor(commit=True) as cursor:
+            cursor.execute("""
+                UPDATE giai_dau SET
+                    ten_giai_dau=%s, so_luong_san=%s, dia_diem=%s,
+                    chi_phi_san_bai=%s, chi_phi_nuoc_noi=%s,
+                    chi_phi_giai_thuong=%s, chi_phi_khac=%s,
+                    ty_le_giai_1=%s, ty_le_giai_2=%s, ty_le_giai_3=%s,
+                    so_nguoi_du_kien=%s, thoi_gian_bat_dau=%s, loai_dau=%s,
+                    diem_cham=%s, diem_toi_da=%s
+                WHERE id=%s;
+            """, (
+                request.form['ten_giai_dau'],
+                request.form['so_luong_san'],
+                request.form.get('dia_diem'),
+                request.form.get('chi_phi_san_bai', 0),
+                request.form.get('chi_phi_nuoc_noi', 0),
+                request.form.get('chi_phi_giai_thuong', 0),
+                request.form.get('chi_phi_khac', 0),
+                request.form.get('ty_le_giai_1', 5),
+                request.form.get('ty_le_giai_2', 3),
+                request.form.get('ty_le_giai_3', 2),
+                request.form.get('so_nguoi_du_kien', 10),
+                request.form.get('thoi_gian_bat_dau', None),
+                loai_dau,
+                diem_cham,
+                diem_toi_da,
+                giai_id
+            ))
         DBLogger.log_success(f"Tournament {giai_id} updated ({loai_dau})", user.get('email'), f'/sua-giai-dau/{giai_id}')
         return redirect('/')
     except Exception as e:
@@ -426,12 +428,8 @@ def xoa_giai_dau(giai_id):
     """Xóa giải"""
     user = session.get('user', {})
     try:
-        conn = psycopg2.connect(**DB_CONFIG)
-        cursor = conn.cursor()
-        cursor.execute("DELETE FROM giai_dau WHERE id = %s;", (giai_id,))
-        conn.commit()
-        cursor.close()
-        conn.close()
+        with db_cursor(commit=True) as cursor:
+            cursor.execute("DELETE FROM giai_dau WHERE id = %s;", (giai_id,))
         DBLogger.log_success(f"Tournament {giai_id} deleted", user.get('email'), f'/xoa-giai-dau/{giai_id}')
         return redirect('/')
     except Exception as e:
@@ -486,15 +484,12 @@ def chi_tiet_giai_admin(giai_id):
         
         # ← FIX #1: Properly get loai_dau with error handling
         try:
-            conn = psycopg2.connect(**DB_CONFIG)
-            cursor = conn.cursor()
-            cursor.execute("SELECT loai_dau FROM giai_dau WHERE id = %s;", (giai_id,))
-            result = cursor.fetchone()
+            with db_cursor() as cursor:
+                cursor.execute("SELECT loai_dau FROM giai_dau WHERE id = %s;", (giai_id,))
+                result = cursor.fetchone()
             loai_dau = result[0] if result and result[0] else 'don'
             giai_detail['loai_dau'] = loai_dau
             DBLogger.log_info(f"Tournament {giai_id} loai_dau={loai_dau}", user.get('email'), f'/giai-dau/{giai_id}/admin')
-            cursor.close()
-            conn.close()
         except Exception as e:
             DBLogger.log_warning(f"Could not get loai_dau: {str(e)}", user.get('email'), f'/giai-dau/{giai_id}/admin')
             giai_detail['loai_dau'] = 'don'
@@ -570,13 +565,10 @@ def xoa_dang_ky(dang_ky_id):
     """Xóa đăng ký"""
     user = session.get('user', {})
     try:
-        conn = psycopg2.connect(**DB_CONFIG)
-        cursor = conn.cursor()
-        cursor.execute("SELECT giai_dau_id FROM dang_ky_giai WHERE id = %s;", (dang_ky_id,))
-        result = cursor.fetchone()
+        with db_cursor() as cursor:
+            cursor.execute("SELECT giai_dau_id FROM dang_ky_giai WHERE id = %s;", (dang_ky_id,))
+            result = cursor.fetchone()
         giai_id = result[0] if result else None
-        cursor.close()
-        conn.close()
         
         DangKyGiaiModel.remove(dang_ky_id)
         DBLogger.log_success(f"Registration {dang_ky_id} removed", user.get('email'), f'/dang-ky-giai/{dang_ky_id}/xoa')
@@ -594,13 +586,10 @@ def cap_nhat_tien_dang_ky(dang_ky_id):
         so_tien = request.form.get('so_tien', 0)
         trang_thai = request.form.get('trang_thai', 'Chưa đóng')
         
-        conn = psycopg2.connect(**DB_CONFIG)
-        cursor = conn.cursor()
-        cursor.execute("SELECT giai_dau_id FROM dang_ky_giai WHERE id = %s;", (dang_ky_id,))
-        result = cursor.fetchone()
+        with db_cursor() as cursor:
+            cursor.execute("SELECT giai_dau_id FROM dang_ky_giai WHERE id = %s;", (dang_ky_id,))
+            result = cursor.fetchone()
         giai_id = result[0] if result else None
-        cursor.close()
-        conn.close()
         
         DangKyGiaiModel.update_payment(dang_ky_id, so_tien, trang_thai)
         DBLogger.log_success(f"Payment updated: {so_tien}đ", user.get('email'), f'/dang-ky-giai/{dang_ky_id}/cap-nhat-tien')
@@ -621,13 +610,10 @@ def auto_chia_lich(giai_id):
         
         # ← FIX #1: Get loai_dau with error handling
         try:
-            conn = psycopg2.connect(**DB_CONFIG)
-            cursor = conn.cursor()
-            cursor.execute("SELECT loai_dau FROM giai_dau WHERE id = %s;", (giai_id,))
-            result = cursor.fetchone()
+            with db_cursor() as cursor:
+                cursor.execute("SELECT loai_dau FROM giai_dau WHERE id = %s;", (giai_id,))
+                result = cursor.fetchone()
             loai_dau = result[0] if result and result[0] else 'don'
-            cursor.close()
-            conn.close()
         except Exception as e:
             DBLogger.log_warning(f"Could not get loai_dau: {str(e)}", user.get('email'), f'/giai-dau/{giai_id}/chia-lich')
             loai_dau = 'don'
@@ -689,12 +675,9 @@ def cap_nhat_ty_so(tran_id):
         diem_b = int(diem_b_raw) if str(diem_b_raw or '').strip() != '' else None
         thu_tu_danh = int(thu_tu_raw) if str(thu_tu_raw) in ('1', '2') else 2
         
-        conn = psycopg2.connect(**DB_CONFIG)
-        cursor = conn.cursor()
-        cursor.execute("SELECT giai_dau_id FROM tran_dau WHERE id = %s;", (tran_id,))
-        giai_id = cursor.fetchone()[0]
-        cursor.close()
-        conn.close()
+        with db_cursor() as cursor:
+            cursor.execute("SELECT giai_dau_id FROM tran_dau WHERE id = %s;", (tran_id,))
+            giai_id = cursor.fetchone()[0]
         
         trang_thai, diem_a, diem_b = MatchModel.update_score(tran_id, diem_a, diem_b, thu_tu_danh, doi_dang_giao)
         DBLogger.log_success(f"Match {tran_id} score updated: {diem_a}-{diem_b}-{thu_tu_danh}-{doi_dang_giao}", user.get('email'), f'/tran-dau/{tran_id}/cap-nhat-ty-so')
@@ -898,13 +881,10 @@ def chi_tiet_giai_vdv(giai_id):
 
         # Get loai_dau
         try:
-            conn2 = psycopg2.connect(**DB_CONFIG)
-            cur2 = conn2.cursor()
-            cur2.execute("SELECT loai_dau FROM giai_dau WHERE id = %s;", (giai_id,))
-            r = cur2.fetchone()
+            with db_cursor() as cur2:
+                cur2.execute("SELECT loai_dau FROM giai_dau WHERE id = %s;", (giai_id,))
+                r = cur2.fetchone()
             giai_detail['loai_dau'] = r[0] if r and r[0] else 'don'
-            cur2.close()
-            conn2.close()
         except Exception:
             giai_detail['loai_dau'] = 'don'
         
