@@ -481,10 +481,15 @@ BTC</textarea>
     <div class="card mb-5">
         <div class="card-hdr blue">
             <span>💰 DANH SÁCH ĐÓNG PHÍ</span>
-            <button class="btn btn-sm btn-light fw-bold" type="button"
-                    data-bs-toggle="collapse" data-bs-target="#formCapNhat">
-                ✏️ Cập nhật phí
-            </button>
+            <div class="d-flex gap-2">
+                <button type="submit" form="formDongPhi" class="btn btn-sm btn-light fw-bold">
+                    💾 Lưu tất cả
+                </button>
+                <button class="btn btn-sm btn-warning fw-bold" type="button"
+                        data-bs-toggle="collapse" data-bs-target="#formCapNhat">
+                    ✏️ Cập nhật phí
+                </button>
+            </div>
         </div>
         <div class="card-body p-3">
             <!-- Tổng kết tài chính -->
@@ -512,24 +517,57 @@ BTC</textarea>
                 </div>
             </div>
 
-            <!-- Form cập nhật phí (collapse) -->
+            <!-- Form cập nhật phí (collapse) — 1 form duy nhất cho toàn bộ -->
             <div class="collapse mb-3" id="formCapNhat">
-                <div class="border rounded p-3 bg-light">
-                    <p class="fw-bold mb-2 small">Chọn VĐV để cập nhật số tiền đã đóng:</p>
-                    {% for reg in registrations %}
-                    <form action="/dang-ky-giai/{{ reg[0] }}/cap-nhat-tien" method="POST"
-                          class="d-flex align-items-center gap-2 mb-2 flex-wrap">
-                        <span class="fw-semibold small" style="min-width:140px">{{ reg[2] }}</span>
-                        <input type="number" name="so_tien" class="form-control form-control-sm"
-                               value="{{ reg[5] or 0 }}" style="max-width:120px" min="0">
-                        <select name="trang_thai" class="form-select form-select-sm" style="max-width:140px">
-                            <option value="Đã đóng" {% if reg[6] == 'Đã đóng' %}selected{% endif %}>✅ Đã đóng</option>
-                            <option value="Chưa đóng" {% if reg[6] == 'Chưa đóng' or not reg[6] %}selected{% endif %}>❌ Chưa đóng</option>
-                        </select>
-                        <button type="submit" class="btn btn-primary btn-sm">💾</button>
-                    </form>
-                    {% endfor %}
-                </div>
+                <form id="formDongPhi"
+                      action="/giai-dau/{{ giai.id }}/cap-nhat-tien-hang-loat"
+                      method="POST">
+                    <div class="border rounded p-3 bg-light">
+                        <p class="fw-bold mb-3 small text-muted">
+                            Chỉnh sửa phí cho tất cả VĐV, bấm
+                            <strong class="text-primary">💾 Lưu tất cả</strong>
+                            để lưu một lần.
+                        </p>
+                        <div class="row g-2">
+                        {% for reg in registrations %}
+                        <div class="col-12">
+                            <div class="d-flex align-items-center gap-2 flex-wrap py-1
+                                        border-bottom border-light">
+                                <span class="fw-semibold" style="min-width:160px">
+                                    {{ reg[2] }}
+                                    <span class="badge bg-secondary ms-1">{{ reg[3] }}</span>
+                                </span>
+                                <div class="input-group input-group-sm" style="max-width:180px">
+                                    <span class="input-group-text">₫</span>
+                                    <input type="number"
+                                           name="tien_{{ reg[0] }}"
+                                           class="form-control"
+                                           value="{{ reg[5] or 0 }}"
+                                           min="0" step="1000">
+                                </div>
+                                <select name="trang_thai_{{ reg[0] }}"
+                                        class="form-select form-select-sm"
+                                        style="max-width:150px">
+                                    <option value="Đã đóng"
+                                        {% if reg[6] == 'Đã đóng' %}selected{% endif %}>
+                                        ✅ Đã đóng
+                                    </option>
+                                    <option value="Chưa đóng"
+                                        {% if reg[6] != 'Đã đóng' %}selected{% endif %}>
+                                        ❌ Chưa đóng
+                                    </option>
+                                </select>
+                            </div>
+                        </div>
+                        {% endfor %}
+                        </div>
+                        <div class="mt-3 text-end">
+                            <button type="submit" class="btn btn-primary fw-bold px-4">
+                                💾 Lưu tất cả ({{ registrations|length }} VĐV)
+                            </button>
+                        </div>
+                    </div>
+                </form>
             </div>
 
             <!-- Bảng danh sách -->

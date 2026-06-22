@@ -495,10 +495,15 @@ def auto_chia_lich(giai_id):
             loai_dau = 'don'
         
         MatchModel.delete_by_tournament(giai_id)
-        team_names = [r[2] for r in registrations]
-        
-        # ← Use loai_dau from database
-        matches = MatchSchedulerService.generate_round_robin(team_names, so_san, loai_dau)
+
+        if loai_dau == 'doi':
+            # Doubles: truyền (tên, trình độ) để smart pairing theo level
+            players = [(r[2], r[3] or 'D') for r in registrations]
+        else:
+            # Singles: chỉ cần tên
+            players = [r[2] for r in registrations]
+
+        matches = MatchSchedulerService.generate_round_robin(players, so_san, loai_dau)
         MatchModel.save_matches(giai_id, matches)
         
         DBLogger.log_success(f"Schedule generated: {len(matches)} matches ({loai_dau})", user.get('email'), f'/giai-dau/{giai_id}/chia-lich')
@@ -507,7 +512,29 @@ def auto_chia_lich(giai_id):
         DBLogger.log_error(f"Error generating schedule: {str(e)}", user.get('email'), f'/giai-dau/{giai_id}/chia-lich', context=traceback.format_exc())
         return f"❌ Error: {str(e)}", 500
 
-@app.route('/tran-dau/<int:tran_id>/cap-nhat-ty-so', methods=['POST'])
+@app.route('/giai-dau/<int:giai_id>/cap-nhat-tien-hang-loat', methods=['POST'])
+@admin_required
+def cap_nhat_tien_hang_loat(giai_id):
+    """Cập nhật phí đóng cho toàn bộ VĐV trong 1 lần submit"""
+    user = session.get('user', {})
+    try:
+        registrations = DangKyGiaiModel.get_by_tournament(giai_id)
+        updated = 0
+        for reg in registrations:
+            reg_id = reg[0]
+            so_tien = request.form.get(f'tien_{reg_id}', 0)
+            trang_thai = request.form.get(f'trang_thai_{reg_id}', 'Chưa đóng')
+            try:
+                so_tien = float(so_tien) if so_tien else 0
+            except ValueError:
+                so_tien = 0
+            DangKyGiaiModel.update_payment(reg_id, so_tien, trang_thai)
+            updated += 1
+        DBLogger.log_success(f"Batch payment update: {updated} records for tournament {giai_id}", user.get('email'), f'/giai-dau/{giai_id}/cap-nhat-tien-hang-loat')
+        return redirect(f'/giai-dau/{giai_id}/admin')
+    except Exception as e:
+        DBLogger.log_error(f"Batch payment error: {str(e)}", user.get('email'), f'/giai-dau/{giai_id}/cap-nhat-tien-hang-loat', context=traceback.format_exc())
+        return f"❌ Error: {str(e)}", 500
 @admin_required
 def cap_nhat_ty_so(tran_id):
     """Cập nhật tỷ số"""
