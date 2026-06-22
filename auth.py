@@ -39,33 +39,6 @@ class AuthService:
         return {"id": user[0], "email": user[1], "role": "admin"}, None
 
     @staticmethod
-    def login_vdv(email, password):
-        """Login cho VĐV"""
-        conn = psycopg2.connect(**DB_CONFIG)
-        cursor = conn.cursor()
-        cursor.execute("""
-            SELECT id, ten_nguoi_choi, email, giai_dau_id FROM nguoi_choi WHERE email = %s;
-        """, (email,))
-        vdv = cursor.fetchone()
-        cursor.close()
-        conn.close()
-
-        if not vdv:
-            return None, "Email không tồn tại trong danh sách VĐV"
-        
-        # Password mặc định: 123456789
-        if password != "123456789":
-            return None, "Mật khẩu sai (mặc định: 123456789)"
-        
-        return {
-            "id": vdv[0],
-            "ten": vdv[1],
-            "email": vdv[2],
-            "giai_id": vdv[3],
-            "role": "vdv"
-        }, None
-
-    @staticmethod
     def register_admin(email, password):
         """Tạo tài khoản admin (chỉ cấu hình lần đầu)"""
         conn = psycopg2.connect(**DB_CONFIG)

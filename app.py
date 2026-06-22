@@ -5,7 +5,8 @@ All logs stored in app_logs table
 
 from flask import Flask, render_template, request, redirect, url_for, session, jsonify
 from models import VanDongVienModel, TournamentModel, DangKyGiaiModel, MatchModel
-from services import FinanceService, MatchSchedulerService
+from services import FinanceService
+from knockout_logic import MatchSchedulerService
 from auth import AuthService, login_required, admin_required
 from config import DB_CONFIG, FLASK_SECRET_KEY
 from logging_service import DBLogger, DBLogViewer
@@ -216,30 +217,40 @@ def xoa_van_dong_vien(vdv_id):
 @app.route('/them-giai-dau', methods=['POST'])
 @admin_required
 def them_giai_dau():
-    """Tạo giải mới"""
+    """Tạo giải mới - ENSURE loai_dau is saved"""
     user = session.get('user', {})
     try:
         conn = psycopg2.connect(**DB_CONFIG)
         cursor = conn.cursor()
+        
+        loai_dau = request.form.get('loai_dau', 'don')
+        DBLogger.log_info(f"Creating tournament with loai_dau={loai_dau}", user.get('email'), '/them-giai-dau')
+        
         cursor.execute("""
             INSERT INTO giai_dau 
                 (ten_giai_dau, so_luong_san, dia_diem,
                  chi_phi_san_bai, chi_phi_nuoc_noi, chi_phi_giai_thuong, chi_phi_khac,
-                 ty_le_giai_1, ty_le_giai_2, ty_le_giai_3, so_nguoi_du_kien, thoi_gian_bat_dau)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
+                 ty_le_giai_1, ty_le_giai_2, ty_le_giai_3, so_nguoi_du_kien, thoi_gian_bat_dau, loai_dau)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
         """, (
-            request.form['ten_giai_dau'], request.form['so_luong_san'],
+            request.form['ten_giai_dau'], 
+            request.form['so_luong_san'],
             request.form.get('dia_diem', ''),
-            request.form.get('chi_phi_san_bai', 0), request.form.get('chi_phi_nuoc_noi', 0),
-            request.form.get('chi_phi_giai_thuong', 0), request.form.get('chi_phi_khac', 0),
-            request.form.get('ty_le_giai_1', 5), request.form.get('ty_le_giai_2', 3),
-            request.form.get('ty_le_giai_3', 2), request.form.get('so_nguoi_du_kien', 10),
-            request.form.get('thoi_gian_bat_dau', None)
+            request.form.get('chi_phi_san_bai', 0), 
+            request.form.get('chi_phi_nuoc_noi', 0),
+            request.form.get('chi_phi_giai_thuong', 0), 
+            request.form.get('chi_phi_khac', 0),
+            request.form.get('ty_le_giai_1', 5), 
+            request.form.get('ty_le_giai_2', 3),
+            request.form.get('ty_le_giai_3', 2), 
+            request.form.get('so_nguoi_du_kien', 10),
+            request.form.get('thoi_gian_bat_dau', None),
+            loai_dau  # ← Make sure this is included!
         ))
         conn.commit()
         cursor.close()
         conn.close()
-        DBLogger.log_success(f"Tournament created: {request.form['ten_giai_dau']}", user.get('email'), '/them-giai-dau')
+        DBLogger.log_success(f"Tournament created: {request.form['ten_giai_dau']} ({loai_dau})", user.get('email'), '/them-giai-dau')
         return redirect('/')
     except Exception as e:
         DBLogger.log_error(f"Error creating tournament: {str(e)}", user.get('email'), '/them-giai-dau', context=traceback.format_exc())
@@ -248,39 +259,57 @@ def them_giai_dau():
 @app.route('/sua-giai-dau/<int:giai_id>', methods=['GET', 'POST'])
 @admin_required
 def sua_giai_dau(giai_id):
-    """Sửa giải đấu"""
+    """Sửa giải đấu - ENSURE loai_dau is updated"""
     user = session.get('user', {})
     try:
         if request.method == 'GET':
             giai_raw = TournamentModel.get_details(giai_id)
             if not giai_raw:
                 return "Không tìm thấy", 404
+            # ← Get loai_dau from database
+            conn = psycopg2.connect(**DB_CONFIG)
+            cursor = conn.cursor()
+            cursor.execute("SELECT loai_dau FROM giai_dau WHERE id = %s;", (giai_id,))
+            result = cursor.fetchone()
+            cursor.close()
+            conn.close()
+            giai_raw = giai_raw + (result[0] if result else 'don',)  # Add loai_dau to tuple
             return render_template('sua_giai.html', giai=giai_raw)
         
         conn = psycopg2.connect(**DB_CONFIG)
         cursor = conn.cursor()
+        
+        loai_dau = request.form.get('loai_dau', 'don')
+        DBLogger.log_info(f"Updating tournament {giai_id} with loai_dau={loai_dau}", user.get('email'), f'/sua-giai-dau/{giai_id}')
+        
         cursor.execute("""
             UPDATE giai_dau SET
                 ten_giai_dau=%s, so_luong_san=%s, dia_diem=%s,
                 chi_phi_san_bai=%s, chi_phi_nuoc_noi=%s,
                 chi_phi_giai_thuong=%s, chi_phi_khac=%s,
                 ty_le_giai_1=%s, ty_le_giai_2=%s, ty_le_giai_3=%s,
-                so_nguoi_du_kien=%s, thoi_gian_bat_dau=%s
+                so_nguoi_du_kien=%s, thoi_gian_bat_dau=%s, loai_dau=%s
             WHERE id=%s;
         """, (
-            request.form['ten_giai_dau'], request.form['so_luong_san'],
-            request.form.get('dia_diem'), request.form.get('chi_phi_san_bai', 0),
-            request.form.get('chi_phi_nuoc_noi', 0), request.form.get('chi_phi_giai_thuong', 0),
-            request.form.get('chi_phi_khac', 0), request.form.get('ty_le_giai_1', 5),
-            request.form.get('ty_le_giai_2', 3), request.form.get('ty_le_giai_3', 2),
+            request.form['ten_giai_dau'], 
+            request.form['so_luong_san'],
+            request.form.get('dia_diem'), 
+            request.form.get('chi_phi_san_bai', 0),
+            request.form.get('chi_phi_nuoc_noi', 0), 
+            request.form.get('chi_phi_giai_thuong', 0),
+            request.form.get('chi_phi_khac', 0), 
+            request.form.get('ty_le_giai_1', 5),
+            request.form.get('ty_le_giai_2', 3), 
+            request.form.get('ty_le_giai_3', 2),
             request.form.get('so_nguoi_du_kien', 10),
             request.form.get('thoi_gian_bat_dau', None),
+            loai_dau,  # ← Make sure this is included!
             giai_id
         ))
         conn.commit()
         cursor.close()
         conn.close()
-        DBLogger.log_success(f"Tournament {giai_id} updated", user.get('email'), f'/sua-giai-dau/{giai_id}')
+        DBLogger.log_success(f"Tournament {giai_id} updated ({loai_dau})", user.get('email'), f'/sua-giai-dau/{giai_id}')
         return redirect('/')
     except Exception as e:
         DBLogger.log_error(f"Error updating tournament: {str(e)}", user.get('email'), f'/sua-giai-dau/{giai_id}', context=traceback.format_exc())
@@ -307,7 +336,7 @@ def xoa_giai_dau(giai_id):
 @app.route('/giai-dau/<int:giai_id>/admin')
 @admin_required
 def chi_tiet_giai_admin(giai_id):
-    """Chi tiết giải (ADMIN)"""
+    """Chi tiết giải (ADMIN) - FIXED VERSION"""
     user = session.get('user', {})
     try:
         giai_raw = TournamentModel.get_details(giai_id)
@@ -331,10 +360,41 @@ def chi_tiet_giai_admin(giai_id):
         giai_detail['matches'] = matches
         giai_detail['registrations'] = registrations
         giai_detail['all_vdv'] = all_vdv
-        giai_detail['user_role'] = 'admin'
+
+        # Build vong_dict: { vong_number: [match_dict, ...] } for the template
+        vong_dict = {}
+        for m in matches:
+            vong = m[7] or 1
+            if vong not in vong_dict:
+                vong_dict[vong] = []
+            vong_dict[vong].append({
+                "id": m[0], "doi_a": m[1], "doi_b": m[2],
+                "diem_a": m[3], "diem_b": m[4],
+                "trang_thai": m[5], "san": m[6] or 1, "vong": vong
+            })
+        giai_detail['vong_dict'] = vong_dict
         
+        # ← FIX #1: Properly get loai_dau with error handling
+        try:
+            conn = psycopg2.connect(**DB_CONFIG)
+            cursor = conn.cursor()
+            cursor.execute("SELECT loai_dau FROM giai_dau WHERE id = %s;", (giai_id,))
+            result = cursor.fetchone()
+            loai_dau = result[0] if result and result[0] else 'don'
+            giai_detail['loai_dau'] = loai_dau
+            DBLogger.log_info(f"Tournament {giai_id} loai_dau={loai_dau}", user.get('email'), f'/giai-dau/{giai_id}/admin')
+            cursor.close()
+            conn.close()
+        except Exception as e:
+            DBLogger.log_warning(f"Could not get loai_dau: {str(e)}", user.get('email'), f'/giai-dau/{giai_id}/admin')
+            giai_detail['loai_dau'] = 'don'
+        
+        canh_bao = None
+        if request.args.get('error') == 'full':
+            canh_bao = "⚠️ Giải đã đủ số người dự kiến, không thể thêm VĐV nữa. Hãy tăng 'Số người dự kiến' trong phần Sửa giải nếu muốn nhận thêm."
+
         DBLogger.log_request('GET', f'/giai-dau/{giai_id}/admin', user.get('email'))
-        return render_template('chi_tiet_giai_admin.html', giai=giai_detail, enumerate=enumerate)
+        return render_template('chi_tiet_giai_admin.html', giai=giai_detail, registrations=registrations, canh_bao=canh_bao, enumerate=enumerate)
     except Exception as e:
         DBLogger.log_error(f"Error loading tournament: {str(e)}", user.get('email'), f'/giai-dau/{giai_id}/admin', context=traceback.format_exc())
         return f"❌ Error: {str(e)}", 500
@@ -346,6 +406,18 @@ def dang_ky_vdv(giai_id):
     user = session.get('user', {})
     try:
         van_dong_vien_id = request.form['van_dong_vien_id']
+
+        giai_raw = TournamentModel.get_details(giai_id)
+        so_nguoi_du_kien = giai_raw[11] if giai_raw and giai_raw[11] else 0
+        registrations = DangKyGiaiModel.get_by_tournament(giai_id)
+
+        if so_nguoi_du_kien and len(registrations) >= so_nguoi_du_kien:
+            DBLogger.log_warning(
+                f"Registration rejected: tournament {giai_id} already full ({len(registrations)}/{so_nguoi_du_kien})",
+                user.get('email'), f'/giai-dau/{giai_id}/dang-ky'
+            )
+            return redirect(f'/giai-dau/{giai_id}/admin?error=full')
+
         DangKyGiaiModel.register(van_dong_vien_id, giai_id)
         DBLogger.log_success(f"VĐV {van_dong_vien_id} registered for tournament {giai_id}", user.get('email'), f'/giai-dau/{giai_id}/dang-ky')
         return redirect(f'/giai-dau/{giai_id}/admin')
@@ -398,22 +470,37 @@ def cap_nhat_tien_dang_ky(dang_ky_id):
         DBLogger.log_error(f"Error updating payment: {str(e)}", user.get('email'), f'/dang-ky-giai/{dang_ky_id}/cap-nhat-tien', context=traceback.format_exc())
         return f"❌ Error: {str(e)}", 500
 
-@app.route('/giai-dau/<int:giai_id>/chia-lich', methods=['POST'])
+@app.route('/giai-dau/<int:giai_id>/chia-lich', methods=['POST'])  # ← CRITICAL: methods=['POST']
 @admin_required
 def auto_chia_lich(giai_id):
-    """Tạo lịch"""
+    """Tự sinh lịch thi đấu - FIXED VERSION"""
     user = session.get('user', {})
     try:
         registrations = DangKyGiaiModel.get_by_tournament(giai_id)
         giai_raw = TournamentModel.get_details(giai_id)
         so_san = giai_raw[2] if giai_raw else 1
         
+        # ← FIX #1: Get loai_dau with error handling
+        try:
+            conn = psycopg2.connect(**DB_CONFIG)
+            cursor = conn.cursor()
+            cursor.execute("SELECT loai_dau FROM giai_dau WHERE id = %s;", (giai_id,))
+            result = cursor.fetchone()
+            loai_dau = result[0] if result and result[0] else 'don'
+            cursor.close()
+            conn.close()
+        except Exception as e:
+            DBLogger.log_warning(f"Could not get loai_dau: {str(e)}", user.get('email'), f'/giai-dau/{giai_id}/chia-lich')
+            loai_dau = 'don'
+        
         MatchModel.delete_by_tournament(giai_id)
         team_names = [r[2] for r in registrations]
-        matches = MatchSchedulerService.generate_round_robin(team_names, so_san)
+        
+        # ← Use loai_dau from database
+        matches = MatchSchedulerService.generate_round_robin(team_names, so_san, loai_dau)
         MatchModel.save_matches(giai_id, matches)
         
-        DBLogger.log_success(f"Schedule generated: {len(matches)} matches", user.get('email'), f'/giai-dau/{giai_id}/chia-lich')
+        DBLogger.log_success(f"Schedule generated: {len(matches)} matches ({loai_dau})", user.get('email'), f'/giai-dau/{giai_id}/chia-lich')
         return redirect(f'/giai-dau/{giai_id}/admin')
     except Exception as e:
         DBLogger.log_error(f"Error generating schedule: {str(e)}", user.get('email'), f'/giai-dau/{giai_id}/chia-lich', context=traceback.format_exc())
@@ -587,7 +674,7 @@ def chi_tiet_giai_vdv(giai_id):
         giai_detail['user_role'] = 'vdv'
         
         DBLogger.log_request('GET', f'/giai-dau/{giai_id}/vdv', user.get('email'))
-        return render_template('chi_tiet_giai_vdv.html', giai=giai_detail, enumerate=enumerate)
+        return render_template('chi_tiet_giai_vdv.html', giai=giai_detail, registrations=registrations, enumerate=enumerate)
     except Exception as e:
         DBLogger.log_error(f"Error loading tournament: {str(e)}", user.get('email'), f'/giai-dau/{giai_id}/vdv', context=traceback.format_exc())
         return f"❌ Error: {str(e)}", 500

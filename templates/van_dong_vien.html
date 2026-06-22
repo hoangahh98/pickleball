@@ -5,55 +5,100 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Quản Lý VĐV</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { background: #f5f7fa; }
+        .card { border: none; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,.08); }
+        .badge-trinh-A { background:#dc3545; }
+        .badge-trinh-B { background:#fd7e14; }
+        .badge-trinh-C { background:#0d6efd; }
+        .badge-trinh-D { background:#6c757d; }
+        #searchInput { max-width: 260px; }
+    </style>
 </head>
-<body class="bg-light">
-    <nav class="navbar navbar-dark bg-dark mb-4">
-        <div class="container">
-            <span class="navbar-brand mb-0 h1">👥 Quản Lý Vận Động Viên</span>
-            <div>
-                <a href="/" class="btn btn-sm btn-outline-light">⬅️ Quay lại</a>
-                <a href="/dang-xuat" class="btn btn-sm btn-outline-danger">🚪 Đăng xuất</a>
-            </div>
-        </div>
-    </nav>
-
-    <div class="container mt-4">
-        <div class="card shadow-sm mb-4">
-            <div class="card-body">
-                <a href="/van-dong-vien/them" class="btn btn-success btn-lg fw-bold">➕ THÊM VĐV MỚI</a>
-            </div>
-        </div>
-
-        <div class="card shadow-sm">
-            <div class="card-header bg-primary text-white fw-bold">📋 DANH SÁCH VĐV</div>
-            <div class="card-body">
-                {% if vdv_list %}
-                <table class="table table-hover">
-                    <thead class="table-dark">
-                        <tr>
-                            <th>Tên</th><th>Trình Độ</th><th>Email</th><th>Hành Động</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                    {% for vdv in vdv_list %}
-                    <tr>
-                        <td><strong>{{ vdv[1] }}</strong></td>
-                        <td><span class="badge bg-info">{{ vdv[2] }}</span></td>
-                        <td>{{ vdv[3] }}</td>
-                        <td>
-                            <a href="/van-dong-vien/{{ vdv[0] }}/sua" class="btn btn-sm btn-warning">Sửa</a>
-                            <a href="/van-dong-vien/{{ vdv[0] }}/xoa" class="btn btn-sm btn-danger" onclick="return confirm('Xóa?')">Xóa</a>
-                        </td>
-                    </tr>
-                    {% endfor %}
-                    </tbody>
-                </table>
-                {% else %}
-                <div class="alert alert-info">Chưa có VĐV</div>
-                {% endif %}
-            </div>
+<body>
+<nav class="navbar navbar-dark bg-dark mb-4">
+    <div class="container-fluid px-4">
+        <span class="navbar-brand mb-0 h1">👥 Quản Lý VĐV</span>
+        <div class="d-flex gap-2">
+            <a href="/" class="btn btn-sm btn-outline-light">⬅️ Trang chủ</a>
+            <a href="/dang-xuat" class="btn btn-sm btn-outline-danger">🚪 Đăng xuất</a>
         </div>
     </div>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</nav>
+
+<div class="container-fluid px-4">
+    <!-- Stat + nút thêm -->
+    <div class="row g-3 mb-4">
+        <div class="col-md-3">
+            <div class="card text-center p-3">
+                <div style="font-size:36px;font-weight:700;color:#0d6efd;">{{ vdv_list|length }}</div>
+                <div class="text-muted small">Tổng VĐV</div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-center p-3">
+                <div style="font-size:36px;font-weight:700;color:#198754;">
+                    {{ vdv_list|selectattr(2,'equalto','A')|list|length + vdv_list|selectattr(2,'equalto','B')|list|length }}
+                </div>
+                <div class="text-muted small">Trình A + B</div>
+            </div>
+        </div>
+        <div class="col-md-6 d-flex align-items-center justify-content-end gap-2">
+            <input type="text" id="searchInput" class="form-control" placeholder="🔍 Tìm tên / email...">
+            <a href="/van-dong-vien/them" class="btn btn-success fw-bold px-4">➕ THÊM VĐV</a>
+        </div>
+    </div>
+
+    <!-- Bảng VĐV -->
+    <div class="card">
+        <div class="card-header bg-primary text-white fw-bold">📋 DANH SÁCH VĐV</div>
+        <div class="card-body p-0">
+            {% if vdv_list %}
+            <table class="table table-hover mb-0" id="vdvTable">
+                <thead class="table-dark">
+                    <tr>
+                        <th style="width:40px">#</th>
+                        <th>Tên VĐV</th>
+                        <th style="width:80px">Trình</th>
+                        <th>Email</th>
+                        <th>Ghi chú</th>
+                        <th style="width:110px" class="text-center">Hành động</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for vdv in vdv_list %}
+                <tr>
+                    <td class="text-muted small">{{ loop.index }}</td>
+                    <td><strong>{{ vdv[1] }}</strong></td>
+                    <td>
+                        <span class="badge badge-trinh-{{ vdv[2] }}">{{ vdv[2] }}</span>
+                    </td>
+                    <td class="small text-muted">{{ vdv[3] }}</td>
+                    <td class="small text-muted">{{ vdv[4] or '' }}</td>
+                    <td class="text-center">
+                        <a href="/van-dong-vien/{{ vdv[0] }}/sua" class="btn btn-sm btn-warning py-0">✏️</a>
+                        <a href="/van-dong-vien/{{ vdv[0] }}/xoa" class="btn btn-sm btn-danger py-0"
+                           onclick="return confirm('Xóa VĐV {{ vdv[1] }}? Hành động này sẽ xóa toàn bộ đăng ký giải của VĐV này.')">🗑️</a>
+                    </td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <div class="alert alert-info m-3">Chưa có VĐV nào. <a href="/van-dong-vien/them">Thêm ngay</a></div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+document.getElementById('searchInput').addEventListener('input', function() {
+    const q = this.value.toLowerCase();
+    document.querySelectorAll('#vdvTable tbody tr').forEach(row => {
+        row.style.display = row.textContent.toLowerCase().includes(q) ? '' : 'none';
+    });
+});
+</script>
 </body>
 </html>

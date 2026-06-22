@@ -1,5 +1,5 @@
 import math
-import random
+
 
 class FinanceService:
     @staticmethod
@@ -60,81 +60,3 @@ class FinanceService:
             "banner_image": banner,
             "qr_image": qr
         }
-
-
-class MatchSchedulerService:
-    @staticmethod
-    def auto_pairing_teams(players_raw):
-        """Ghép đôi partner ngẫu nhiên theo luật trình độ"""
-        list_A = [p for p in players_raw if p[3] == 'A']
-        list_B = [p for p in players_raw if p[3] == 'B']
-        list_C = [p for p in players_raw if p[3] == 'C']
-        list_D = [p for p in players_raw if p[3] == 'D']
-
-        random.shuffle(list_A)
-        random.shuffle(list_B)
-        random.shuffle(list_C)
-        random.shuffle(list_D)
-
-        trinh_do_hien_co = set(p[3] for p in players_raw)
-        teams = []
-
-        if 'A' in trinh_do_hien_co and 'D' in trinh_do_hien_co:
-            while list_A and list_D:
-                teams.append(f"{list_A.pop()[2]} + {list_D.pop()[2]}")
-            while list_B and list_C:
-                teams.append(f"{list_B.pop()[2]} + {list_C.pop()[2]}")
-            con_lai = list_A + list_B + list_C + list_D
-
-        elif 'A' in trinh_do_hien_co and 'C' in trinh_do_hien_co and 'D' not in trinh_do_hien_co:
-            while list_A and list_C:
-                teams.append(f"{list_A.pop()[2]} + {list_C.pop()[2]}")
-            while len(list_B) >= 2:
-                teams.append(f"{list_B.pop()[2]} + {list_B.pop()[2]}")
-            con_lai = list_A + list_B + list_C
-
-        elif len(trinh_do_hien_co) == 2:
-            sorted_keys = sorted(trinh_do_hien_co)
-            g1 = [p for p in players_raw if p[3] == sorted_keys[0]]
-            g2 = [p for p in players_raw if p[3] == sorted_keys[1]]
-            random.shuffle(g1)
-            random.shuffle(g2)
-            while g1 and g2:
-                teams.append(f"{g1.pop()[2]} + {g2.pop()[2]}")
-            con_lai = g1 + g2
-
-        else:
-            con_lai = list_A + list_B + list_C + list_D
-
-        while len(con_lai) >= 2:
-            teams.append(f"{con_lai.pop()[2]} + {con_lai.pop()[2]}")
-        if con_lai:
-            teams.append(f"{con_lai.pop()[2]} + Lẻ (Chờ ghép)")
-
-        return teams
-
-    @staticmethod
-    def generate_round_robin(teams, so_san=1):
-        """Tạo lịch vòng tròn phân sân"""
-        teams = list(teams)
-        if len(teams) % 2 == 1:
-            teams.append("BYE")
-        n = len(teams)
-        all_matches = []
-
-        for vong in range(n - 1):
-            vong_matches = []
-            for i in range(n // 2):
-                home = teams[i]
-                away = teams[n - 1 - i]
-                if home != "BYE" and away != "BYE":
-                    vong_matches.append({
-                        "vong": vong + 1,
-                        "doi_a": home,
-                        "doi_b": away,
-                        "san": (len(vong_matches) % so_san) + 1
-                    })
-            all_matches.extend(vong_matches)
-            teams = [teams[0]] + [teams[-1]] + teams[1:-1]
-
-        return all_matches

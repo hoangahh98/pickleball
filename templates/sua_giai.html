@@ -46,10 +46,10 @@
                     <div class="mb-3">
                         <label class="form-label"><strong>🎮 Hình Thức Thi Đấu</strong></label>
                         <div class="btn-group w-100" role="group">
-                            <input type="radio" class="btn-check" name="loai_dau" value="don" id="don" {% if giai.loai_dau == 'don' or not giai.loai_dau %}checked{% endif %}>
+                            <input type="radio" class="btn-check" name="loai_dau" value="don" id="don" {% if giai[15] == 'don' or not giai[15] %}checked{% endif %}>
                             <label class="btn btn-outline-primary" for="don">👤 Thi Đơn (1v1)</label>
                             
-                            <input type="radio" class="btn-check" name="loai_dau" value="doi" id="doi" {% if giai.loai_dau == 'doi' %}checked{% endif %}>
+                            <input type="radio" class="btn-check" name="loai_dau" value="doi" id="doi" {% if giai[15] == 'doi' %}checked{% endif %}>
                             <label class="btn btn-outline-primary" for="doi">👥 Thi Đôi (2v2)</label>
                         </div>
                     </div>

@@ -1,9 +1,3 @@
-"""
-Match Scheduling Logic - Support both Singles and Doubles
-+ Round-robin format
-+ Matches distributed across available courts
-"""
-
 class MatchSchedulerService:
     """Generate match schedules"""
     
