@@ -8,7 +8,7 @@ from models import VanDongVienModel, TournamentModel, DangKyGiaiModel, MatchMode
 from services import FinanceService
 from knockout_logic import MatchSchedulerService
 from auth import AuthService, login_required, admin_required
-from config import DB_CONFIG, FLASK_SECRET_KEY
+from config import DB_CONFIG, FLASK_SECRET_KEY, BASE_URL
 from logging_service import DBLogger, DBLogViewer
 import psycopg2
 import traceback
@@ -395,7 +395,7 @@ def chi_tiet_giai_admin(giai_id):
             canh_bao = "⚠️ Giải đã đủ số người dự kiến, không thể thêm VĐV nữa. Hãy tăng 'Số người dự kiến' trong phần Sửa giải nếu muốn nhận thêm."
 
         DBLogger.log_request('GET', f'/giai-dau/{giai_id}/admin', user.get('email'))
-        return render_template('chi_tiet_giai_admin.html', giai=giai_detail, registrations=registrations, canh_bao=canh_bao, enumerate=enumerate)
+        return render_template('chi_tiet_giai_admin.html', giai=giai_detail, registrations=registrations, canh_bao=canh_bao, enumerate=enumerate, base_url=BASE_URL)
     except Exception as e:
         DBLogger.log_error(f"Error loading tournament: {str(e)}", user.get('email'), f'/giai-dau/{giai_id}/admin', context=traceback.format_exc())
         return f"❌ Error: {str(e)}", 500

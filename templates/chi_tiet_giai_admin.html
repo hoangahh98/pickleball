@@ -79,7 +79,127 @@
                     🎮 {% if giai.loai_dau == 'doi' %}👥 Thi Đôi{% else %}👤 Thi Đơn{% endif %}
                 </div>
             </div>
-            <a href="/sua-giai-dau/{{ giai.id }}" class="btn btn-warning btn-sm">✏️ Sửa giải</a>
+            <div class="d-flex gap-2 flex-wrap">
+                <!-- Nút Get Email -->
+                <button type="button" class="btn btn-info btn-sm text-white fw-bold"
+                        data-bs-toggle="modal" data-bs-target="#modalGetEmail">
+                    📧 Get Email
+                </button>
+                <!-- Nút Content Mẫu -->
+                <button type="button" class="btn btn-success btn-sm fw-bold"
+                        data-bs-toggle="modal" data-bs-target="#modalContent">
+                    ✉️ Content Mẫu
+                </button>
+                <a href="/sua-giai-dau/{{ giai.id }}" class="btn btn-warning btn-sm fw-bold">✏️ Sửa giải</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── MODAL: GET EMAIL ─────────────────────────────────── -->
+    <div class="modal fade" id="modalGetEmail" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header bg-info text-white">
+                    <h5 class="modal-title fw-bold">📧 Danh sách Email VĐV</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="small text-muted mb-2">Copy toàn bộ email bên dưới, paste vào ô Bcc/To trong Gmail/Outlook:</p>
+                    <textarea id="emailList" class="form-control font-monospace" rows="4" readonly>{% for reg in registrations %}{{ reg[4] }}{% if not loop.last %}; {% endif %}{% endfor %}</textarea>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-info text-white fw-bold" onclick="copyText('emailList', this)">
+                        📋 Copy tất cả
+                    </button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── MODAL: CONTENT MẪU ──────────────────────────────── -->
+    <div class="modal fade" id="modalContent" tabindex="-1">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header bg-success text-white">
+                    <h5 class="modal-title fw-bold">✉️ Content Mẫu Email</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold small text-muted">TIÊU ĐỀ (Subject)</label>
+                        <div class="input-group">
+                            <input type="text" id="emailSubject" class="form-control"
+                                   value='Thư mời tham gia "{{ giai.ten_giai_dau }}"' readonly>
+                            <button class="btn btn-outline-success" onclick="copyText('emailSubject', this)">📋 Copy</button>
+                        </div>
+                    </div>
+
+                    <div class="mb-2">
+                        <label class="form-label fw-bold small text-muted">NỘI DUNG — gửi riêng từng người (có tên cá nhân)</label>
+                    </div>
+
+                    <!-- Tab chọn từng VĐV -->
+                    <ul class="nav nav-tabs mb-2" id="vdvTabs">
+                        {% for reg in registrations %}
+                        <li class="nav-item">
+                            <button class="nav-link {% if loop.first %}active{% endif %} py-1 px-2 small"
+                                    type="button"
+                                    data-bs-toggle="tab"
+                                    data-bs-target="#vdv-{{ loop.index }}">
+                                {{ reg[2].split()[0] }}
+                            </button>
+                        </li>
+                        {% endfor %}
+                    </ul>
+
+                    <div class="tab-content">
+                        {% for reg in registrations %}
+                        <div class="tab-pane fade {% if loop.first %}show active{% endif %}" id="vdv-{{ loop.index }}">
+                            <div class="input-group">
+                                <textarea id="content-{{ loop.index }}" class="form-control font-monospace" rows="9" readonly>Xin chào Anh/Chị {{ reg[2] }},
+
+Chào mừng Anh/Chị đến với giải đấu "{{ giai.ten_giai_dau }}", sẽ được tổ chức tại địa chỉ {{ giai.dia_diem or 'chưa xác định' }} vào lúc {{ giai.thoi_gian_bat_dau.strftime('%H:%M ngày %d/%m/%Y') if giai.thoi_gian_bat_dau else 'chưa xác định' }}.
+
+Thông tin chi tiết giải đấu xem tại website:
+{{ base_url }}/giai-dau/{{ giai.id }}/vdv
+
+Ban tổ chức rất mong Anh/Chị có mặt đầy đủ và đúng giờ để giải đấu được tổ chức thành công tốt đẹp.
+
+Xin trân trọng cảm ơn.
+BTC</textarea>
+                            </div>
+                            <div class="d-flex gap-2 mt-2 align-items-center">
+                                <small class="text-muted">Gửi đến: <strong>{{ reg[4] }}</strong></small>
+                                <button class="btn btn-sm btn-success ms-auto" onclick="copyText('content-{{ loop.index }}', this)">📋 Copy nội dung</button>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+
+                    <hr>
+                    <div class="mb-2">
+                        <label class="form-label fw-bold small text-muted">NỘI DUNG CHUNG — gửi một lần tới tất cả (không có tên riêng)</label>
+                        <div class="input-group">
+                            <textarea id="contentChung" class="form-control font-monospace" rows="9" readonly>Xin chào Quý Anh/Chị,
+
+Chào mừng Quý Anh/Chị đến với giải đấu "{{ giai.ten_giai_dau }}", sẽ được tổ chức tại địa chỉ {{ giai.dia_diem or 'chưa xác định' }} vào lúc {{ giai.thoi_gian_bat_dau.strftime('%H:%M ngày %d/%m/%Y') if giai.thoi_gian_bat_dau else 'chưa xác định' }}.
+
+Thông tin chi tiết giải đấu xem tại website:
+{{ base_url }}/giai-dau/{{ giai.id }}/vdv
+
+Ban tổ chức rất mong Quý Anh/Chị có mặt đầy đủ và đúng giờ để giải đấu được tổ chức thành công tốt đẹp.
+
+Xin trân trọng cảm ơn.
+BTC</textarea>
+                        </div>
+                        <button class="btn btn-sm btn-success mt-2" onclick="copyText('contentChung', this)">📋 Copy nội dung chung</button>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -454,5 +574,17 @@
 </div><!-- /container-fluid -->
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+function copyText(id, btn) {
+    const el = document.getElementById(id);
+    const text = el.tagName === 'TEXTAREA' || el.tagName === 'INPUT' ? el.value : el.textContent;
+    navigator.clipboard.writeText(text).then(() => {
+        const orig = btn.innerHTML;
+        btn.innerHTML = '✅ Đã copy!';
+        btn.classList.add('btn-secondary');
+        setTimeout(() => { btn.innerHTML = orig; btn.classList.remove('btn-secondary'); }, 2000);
+    });
+}
+</script>
 </body>
 </html>
