@@ -313,7 +313,23 @@
         function getScoreText() {
             const servingScore = state.servingTeam === 'A' ? state.scoreA : state.scoreB;
             const otherScore = state.servingTeam === 'A' ? state.scoreB : state.scoreA;
-            return `${readVietnameseNumber(servingScore)} ${readVietnameseNumber(otherScore)} ${readVietnameseNumber(state.order)}`;
+            const winner = getWinnerTeam();
+            const scoreText = `${readVietnameseNumber(servingScore)} ${readVietnameseNumber(otherScore)} ${readVietnameseNumber(state.order)}`;
+            if (!winner) {
+                return scoreText;
+            }
+            const winnerName = winner === 'A' ? state.teamAName : state.teamBName;
+            return `${scoreText}. Chúc mừng đội ${winnerName} chiến thắng`;
+        }
+
+        function getWinnerTeam() {
+            const diff = Math.abs(state.scoreA - state.scoreB);
+            const high = Math.max(state.scoreA, state.scoreB);
+            const finished = high >= state.maxScore || (high >= state.touchScore && diff >= 2);
+            if (!finished || state.scoreA === state.scoreB) {
+                return null;
+            }
+            return state.scoreA > state.scoreB ? 'A' : 'B';
         }
 
         function setStatus(message) {

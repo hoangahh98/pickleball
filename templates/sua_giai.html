@@ -11,7 +11,7 @@
     <nav class="navbar navbar-dark bg-dark mb-4">
         <div class="container-fluid">
             <span class="navbar-brand mb-0 h1">✏️ Sửa Giải</span>
-            <a href="/" class="btn btn-sm btn-outline-light">⬅️ Quay lại</a>
+            <a href="/giai-dau" class="btn btn-sm btn-outline-light">⬅️ Quay lại</a>
         </div>
     </nav>
 
@@ -126,15 +126,15 @@
                             <div class="row g-2">
                                 <div class="col-md-4">
                                     <label class="form-label">Giải 1 (%)</label>
-                                    <input type="number" name="ty_le_giai_1" class="form-control" value="{{ giai[8] or 5 }}">
+                                    <input type="number" name="ty_le_giai_1" class="form-control" min="0" value="{{ giai[8] if giai[8] is not none else 5 }}">
                                 </div>
                                 <div class="col-md-4">
                                     <label class="form-label">Giải 2 (%)</label>
-                                    <input type="number" name="ty_le_giai_2" class="form-control" value="{{ giai[9] or 3 }}">
+                                    <input type="number" name="ty_le_giai_2" class="form-control" min="0" value="{{ giai[9] if giai[9] is not none else 3 }}">
                                 </div>
                                 <div class="col-md-4">
                                     <label class="form-label">Giải 3 (%)</label>
-                                    <input type="number" name="ty_le_giai_3" class="form-control" value="{{ giai[10] or 2 }}">
+                                    <input type="number" name="ty_le_giai_3" class="form-control" min="0" value="{{ giai[10] if giai[10] is not none else 2 }}">
                                 </div>
                             </div>
                         </div>
@@ -143,7 +143,7 @@
                     <!-- BUTTONS -->
                     <div class="d-grid gap-2">
                         <button type="submit" class="btn btn-primary btn-lg">💾 Lưu Thay Đổi</button>
-                        <a href="/" class="btn btn-outline-secondary">Hủy</a>
+                        <a href="/giai-dau" class="btn btn-outline-secondary">Hủy</a>
                     </div>
                 </form>
             </div>

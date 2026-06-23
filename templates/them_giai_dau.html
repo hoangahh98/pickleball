@@ -11,7 +11,7 @@
     <nav class="navbar navbar-dark bg-dark mb-4">
         <div class="container-fluid">
             <span class="navbar-brand mb-0 h1">🏸 Tạo Giải Mới</span>
-            <a href="/" class="btn btn-sm btn-outline-light">⬅️ Quay lại</a>
+            <a href="/giai-dau" class="btn btn-sm btn-outline-light">⬅️ Quay lại</a>
         </div>
     </nav>
 
@@ -102,15 +102,15 @@
                             <div class="row g-2">
                                 <div class="col-md-4">
                                     <label class="form-label">Giải 1 (%)</label>
-                                    <input type="number" name="ty_le_giai_1" class="form-control" value="5">
+                                    <input type="number" name="ty_le_giai_1" class="form-control" min="0" value="5">
                                 </div>
                                 <div class="col-md-4">
                                     <label class="form-label">Giải 2 (%)</label>
-                                    <input type="number" name="ty_le_giai_2" class="form-control" value="3">
+                                    <input type="number" name="ty_le_giai_2" class="form-control" min="0" value="3">
                                 </div>
                                 <div class="col-md-4">
                                     <label class="form-label">Giải 3 (%)</label>
-                                    <input type="number" name="ty_le_giai_3" class="form-control" value="2">
+                                    <input type="number" name="ty_le_giai_3" class="form-control" min="0" value="2">
                                 </div>
                             </div>
                         </div>
@@ -119,7 +119,7 @@
                     <!-- BUTTONS -->
                     <div class="d-grid gap-2">
                         <button type="submit" class="btn btn-primary btn-lg">✅ Tạo Giải</button>
-                        <a href="/" class="btn btn-outline-secondary">Hủy</a>
+                        <a href="/giai-dau" class="btn btn-outline-secondary">Hủy</a>
                     </div>
                 </form>
             </div>

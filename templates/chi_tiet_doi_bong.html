@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ doi_bong[1] }} - Đội Bóng</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { background: #f0f2f5; }
+        .card { border: none; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,.08); }
+        .card-hdr { color: #fff; font-weight: 700; padding: 10px 16px; border-radius: 8px 8px 0 0; display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+        .card-hdr.green { background: #198754; }
+        .card-hdr.blue { background: #0d6efd; }
+        .card-hdr.dark { background: #212529; }
+        .fee-table { min-width: 980px; }
+        .sufficient-row { background: #d4edda; }
+        .insufficient-row { background: #fff3cd; }
+    </style>
+    {% include '_pwa_head.html' %}
+</head>
+<body>
+    <nav class="navbar navbar-dark bg-dark mb-3">
+        <div class="container-fluid">
+            <span class="navbar-brand mb-0 h1">{{ doi_bong[1] }}</span>
+            <div class="d-flex gap-2">
+                <a href="/doi-bong" class="btn btn-sm btn-outline-light">Đội bóng</a>
+                <a href="/" class="btn btn-sm btn-outline-light">Trang chọn</a>
+                <a href="/dang-xuat" class="btn btn-sm btn-outline-danger">Đăng xuất</a>
+            </div>
+        </div>
+    </nav>
+
+    <main class="container-fluid px-4 pb-4">
+        <div class="bg-white p-3 rounded shadow-sm mb-3 border-start border-success border-5">
+            <div class="d-flex justify-content-between flex-wrap gap-3">
+                <div>
+                    <h5 class="text-success fw-bold mb-1">{{ doi_bong[1] }}</h5>
+                    <div class="text-muted small">{{ doi_bong[2] or 'Chưa có ghi chú' }}</div>
+                </div>
+                <form method="GET" action="/doi-bong/{{ doi_bong[0] }}" class="d-flex align-items-end gap-2">
+                    <div>
+                        <label class="form-label small fw-semibold mb-1">Tháng quỹ</label>
+                        <input type="month" name="thang" class="form-control" value="{{ selected_month }}">
+                    </div>
+                    <button type="submit" class="btn btn-primary">Chọn</button>
+                </form>
+            </div>
+        </div>
+
+        <div class="row g-3 mb-3">
+            <div class="col-md-3">
+                <div class="card h-100">
+                    <div class="card-body text-center">
+                        <div class="small text-muted">Tổng thu</div>
+                        <div class="fw-bold fs-4 text-primary">{{ "{:,.0f}".format(finance.tong_thu) }}đ</div>
+                        <div class="small text-muted">{{ finance.thanh_vien_list|length }} thành viên</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card h-100">
+                    <div class="card-body text-center">
+                        <div class="small text-muted">Tổng donate</div>
+                        <div class="fw-bold fs-4 text-success">+{{ "{:,.0f}".format(finance.tong_donate) }}đ</div>
+                        <div class="small text-muted">Vượt mức {{ "{:,.0f}".format(finance.muc_phi_thang) }}đ/người</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card h-100">
+                    <div class="card-body text-center">
+                        <div class="small text-muted">Quỹ dư tháng trước</div>
+                        <div class="fw-bold fs-4 text-secondary">{{ "{:,.0f}".format(finance.quy_du_thang_truoc) }}đ</div>
+                        <div class="small text-muted">Tự cộng sang tháng này</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card h-100">
+                    <div class="card-body text-center">
+                        <div class="small text-muted">Quỹ còn lại</div>
+                        <div class="fw-bold fs-4 {{ 'text-success' if finance.quy_con_lai >= 0 else 'text-danger' }}">{{ "{:,.0f}".format(finance.quy_con_lai) }}đ</div>
+                        <div class="small text-muted">= Dư trước + Thu - Chi</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row g-3 mb-3">
+            <div class="col-lg-4">
+                <div class="card h-100">
+                    <div class="card-hdr green">Cấu hình quỹ tháng {{ selected_month }}</div>
+                    <div class="card-body">
+                        <form action="/doi-bong/{{ doi_bong[0] }}/cap-nhat-quy" method="POST">
+                            <input type="hidden" name="thang" value="{{ selected_month }}">
+                            <div class="mb-2">
+                                <label class="form-label small fw-semibold">Mức phí tháng / người</label>
+                                <input type="number" class="form-control" name="muc_phi_thang" value="{{ finance.muc_phi_thang|int }}" min="0">
+                            </div>
+                            <div class="row g-2">
+                                <div class="col-4">
+                                    <label class="form-label small fw-semibold">Sân</label>
+                                    <input type="number" class="form-control" name="chi_phi_san_bai" value="{{ finance.chi_phi_san_bai|int }}" min="0">
+                                </div>
+                                <div class="col-4">
+                                    <label class="form-label small fw-semibold">Nước</label>
+                                    <input type="number" class="form-control" name="chi_phi_nuoc_noi" value="{{ finance.chi_phi_nuoc_noi|int }}" min="0">
+                                </div>
+                                <div class="col-4">
+                                    <label class="form-label small fw-semibold">Khác</label>
+                                    <input type="number" class="form-control" name="chi_phi_khac" value="{{ finance.chi_phi_khac|int }}" min="0">
+                                </div>
+                            </div>
+                            <div class="mb-3 mt-2">
+                                <label class="form-label small fw-semibold">Ghi chú tháng</label>
+                                <input type="text" class="form-control" name="ghi_chu" value="{{ finance.ghi_chu or '' }}">
+                            </div>
+                            <button type="submit" class="btn btn-success w-100">Lưu cấu hình tháng</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-8">
+                <div class="card h-100">
+                    <div class="card-hdr blue">Thêm thành viên</div>
+                    <div class="card-body">
+                        <form action="/doi-bong/{{ doi_bong[0] }}/thanh-vien/them" method="POST" class="row g-2 align-items-end">
+                            <input type="hidden" name="thang" value="{{ selected_month }}">
+                            <div class="col-md-4">
+                                <label class="form-label small fw-semibold">Tên thành viên</label>
+                                <input type="text" class="form-control" name="ten_thanh_vien" required>
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label small fw-semibold">Trình</label>
+                                <select name="trinh_do" class="form-select">
+                                    {% for level in ['A','B','C','D'] %}
+                                    <option value="{{ level }}" {% if level == 'C' %}selected{% endif %}>{{ level }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label small fw-semibold">Loại</label>
+                                <select name="loai_thanh_vien" class="form-select">
+                                    <option value="co_dinh">Cố định</option>
+                                    <option value="vang_lai">Vãng lai</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label small fw-semibold">Ghi chú</label>
+                                <input type="text" class="form-control" name="ghi_chu">
+                            </div>
+                            <div class="col-12 d-flex justify-content-end">
+                                <button type="submit" class="btn btn-primary">Thêm thành viên</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-hdr dark">
+                <span>Danh sách đóng phí tháng {{ selected_month }}</span>
+                <span>Chi tháng: {{ "{:,.0f}".format(finance.tong_chi) }}đ</span>
+            </div>
+            <div class="card-body p-0">
+                {% if finance.thanh_vien_list %}
+                <form action="/doi-bong/{{ doi_bong[0] }}/cap-nhat-dong-phi" method="POST">
+                    <input type="hidden" name="thang" value="{{ selected_month }}">
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0 fee-table">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Tên</th>
+                                    <th>Trình</th>
+                                    <th>Loại</th>
+                                    <th>Tiền đóng</th>
+                                    <th>Trạng thái</th>
+                                    <th>Donate/thiếu</th>
+                                    <th>Ghi chú phí</th>
+                                    <th style="width:120px">Thao tác</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for tv in finance.thanh_vien_list %}
+                                <tr class="{% if tv.so_tien_da_dong >= finance.muc_phi_thang and finance.muc_phi_thang > 0 %}sufficient-row{% else %}insufficient-row{% endif %}">
+                                    <td class="fw-semibold">{{ tv.ten }}</td>
+                                    <td><span class="badge bg-secondary">{{ tv.trinh_do }}</span></td>
+                                    <td>
+                                        <span class="badge {{ 'bg-info text-dark' if tv.loai_thanh_vien == 'vang_lai' else 'bg-success' }}">{{ tv.loai_hien_thi }}</span>
+                                    </td>
+                                    <td>
+                                        <input type="number" class="form-control form-control-sm" name="tien_{{ tv.id }}" value="{{ tv.so_tien_da_dong|int }}" min="0">
+                                    </td>
+                                    <td>
+                                        <select class="form-select form-select-sm" name="trang_thai_{{ tv.id }}">
+                                            <option value="Đã đóng" {% if tv.trang_thai_dong_tien == 'Đã đóng' %}selected{% endif %}>Đã đóng</option>
+                                            <option value="Chưa đóng" {% if tv.trang_thai_dong_tien != 'Đã đóng' %}selected{% endif %}>Chưa đóng</option>
+                                        </select>
+                                    </td>
+                                    <td>
+                                        {% if tv.chenh_lech > 0 %}
+                                        <span class="badge bg-success">+{{ "{:,.0f}".format(tv.chenh_lech) }}đ</span>
+                                        {% elif tv.chenh_lech == 0 and finance.muc_phi_thang > 0 %}
+                                        <span class="badge bg-primary">Đủ phí</span>
+                                        {% else %}
+                                        <span class="badge bg-danger">Thiếu {{ "{:,.0f}".format((tv.chenh_lech|abs) if finance.muc_phi_thang > 0 else 0) }}đ</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <input type="text" class="form-control form-control-sm" name="ghi_chu_phi_{{ tv.id }}" value="{{ tv.ghi_chu_phi }}">
+                                    </td>
+                                    <td>
+                                        <button type="button" class="btn btn-sm btn-warning" data-bs-toggle="modal" data-bs-target="#editMember{{ tv.id }}">Sửa</button>
+                                        <a href="/doi-bong/{{ doi_bong[0] }}/thanh-vien/{{ tv.id }}/xoa?thang={{ selected_month }}" class="btn btn-sm btn-danger" onclick="return confirm('Xóa thành viên {{ tv.ten }}?')">Xóa</a>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="p-3 text-end">
+                        <button type="submit" class="btn btn-success fw-bold">Lưu đóng phí</button>
+                    </div>
+                </form>
+                {% else %}
+                <div class="p-3 text-muted">Chưa có thành viên nào trong đội.</div>
+                {% endif %}
+            </div>
+        </div>
+    </main>
+
+    {% for tv in finance.thanh_vien_list %}
+    <div class="modal fade" id="editMember{{ tv.id }}" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header bg-warning">
+                    <h5 class="modal-title">Sửa thành viên</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <form action="/doi-bong/{{ doi_bong[0] }}/thanh-vien/{{ tv.id }}/sua" method="POST">
+                    <div class="modal-body">
+                        <input type="hidden" name="thang" value="{{ selected_month }}">
+                        <div class="mb-3">
+                            <label class="form-label">Tên thành viên</label>
+                            <input type="text" class="form-control" name="ten_thanh_vien" value="{{ tv.ten }}" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Trình</label>
+                            <select name="trinh_do" class="form-select">
+                                {% for level in ['A','B','C','D'] %}
+                                <option value="{{ level }}" {% if tv.trinh_do == level %}selected{% endif %}>{{ level }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Loại thành viên</label>
+                            <select name="loai_thanh_vien" class="form-select">
+                                <option value="co_dinh" {% if tv.loai_thanh_vien == 'co_dinh' %}selected{% endif %}>Cố định</option>
+                                <option value="vang_lai" {% if tv.loai_thanh_vien == 'vang_lai' %}selected{% endif %}>Vãng lai</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Ghi chú</label>
+                            <textarea class="form-control" name="ghi_chu" rows="2">{{ tv.ghi_chu or '' }}</textarea>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button>
+                        <button type="submit" class="btn btn-warning">Lưu</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+{% include '_pwa_register.html' %}
+{% include '_interaction_feedback.html' %}
+</body>
+</html>

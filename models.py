@@ -211,6 +211,217 @@ class DangKyGiaiModel:
         with db_cursor(commit=True) as cursor:
             cursor.execute("DELETE FROM dang_ky_giai WHERE id = %s;", (dang_ky_id,))
 
+class DoiBongModel:
+    """Team management and monthly fee tracking."""
+
+    @staticmethod
+    def normalize_month(month_value):
+        month_value = (month_value or "").strip()
+        if len(month_value) == 7:
+            return f"{month_value}-01"
+        return month_value
+
+    @staticmethod
+    def get_all():
+        with db_cursor() as cursor:
+            cursor.execute("""
+                SELECT d.id, d.ten_doi, d.mo_ta, COUNT(tv.id) AS so_thanh_vien
+                FROM doi_bong d
+                LEFT JOIN doi_bong_thanh_vien tv ON d.id = tv.doi_bong_id AND tv.active = TRUE
+                GROUP BY d.id
+                ORDER BY d.id DESC;
+            """)
+            return cursor.fetchall()
+
+    @staticmethod
+    def get_by_id(doi_bong_id):
+        with db_cursor() as cursor:
+            cursor.execute("SELECT id, ten_doi, mo_ta FROM doi_bong WHERE id = %s;", (doi_bong_id,))
+            return cursor.fetchone()
+
+    @staticmethod
+    def create(ten_doi, mo_ta=""):
+        with db_cursor(commit=True) as cursor:
+            cursor.execute("""
+                INSERT INTO doi_bong (ten_doi, mo_ta)
+                VALUES (%s, %s)
+                RETURNING id;
+            """, (ten_doi, mo_ta))
+            return cursor.fetchone()[0]
+
+    @staticmethod
+    def update(doi_bong_id, ten_doi, mo_ta=""):
+        with db_cursor(commit=True) as cursor:
+            cursor.execute("""
+                UPDATE doi_bong
+                SET ten_doi=%s, mo_ta=%s, updated_at=CURRENT_TIMESTAMP
+                WHERE id=%s;
+            """, (ten_doi, mo_ta, doi_bong_id))
+
+    @staticmethod
+    def delete(doi_bong_id):
+        with db_cursor(commit=True) as cursor:
+            cursor.execute("DELETE FROM doi_bong WHERE id = %s;", (doi_bong_id,))
+
+    @staticmethod
+    def get_members_with_payments(doi_bong_id, thang):
+        thang = DoiBongModel.normalize_month(thang)
+        with db_cursor() as cursor:
+            cursor.execute("""
+                SELECT tv.id, tv.ten_thanh_vien, tv.trinh_do, tv.loai_thanh_vien, tv.ghi_chu,
+                       COALESCE(dp.so_tien_da_dong, 0), COALESCE(dp.trang_thai_dong_tien, 'Chưa đóng'),
+                       COALESCE(dp.ghi_chu, ''), dp.id
+                FROM doi_bong_thanh_vien tv
+                LEFT JOIN doi_bong_dong_phi dp ON tv.id = dp.thanh_vien_id AND dp.thang = %s
+                WHERE tv.doi_bong_id = %s AND tv.active = TRUE
+                ORDER BY tv.ten_thanh_vien ASC;
+            """, (thang, doi_bong_id))
+            return cursor.fetchall()
+
+    @staticmethod
+    def add_member(doi_bong_id, ten_thanh_vien, trinh_do, loai_thanh_vien, ghi_chu=""):
+        with db_cursor(commit=True) as cursor:
+            cursor.execute("""
+                INSERT INTO doi_bong_thanh_vien
+                    (doi_bong_id, ten_thanh_vien, trinh_do, loai_thanh_vien, ghi_chu)
+                VALUES (%s, %s, %s, %s, %s)
+                RETURNING id;
+            """, (doi_bong_id, ten_thanh_vien, trinh_do, loai_thanh_vien, ghi_chu))
+            return cursor.fetchone()[0]
+
+    @staticmethod
+    def update_member(doi_bong_id, thanh_vien_id, ten_thanh_vien, trinh_do, loai_thanh_vien, ghi_chu=""):
+        with db_cursor(commit=True) as cursor:
+            cursor.execute("""
+                UPDATE doi_bong_thanh_vien
+                SET ten_thanh_vien=%s, trinh_do=%s, loai_thanh_vien=%s, ghi_chu=%s,
+                    updated_at=CURRENT_TIMESTAMP
+                WHERE doi_bong_id=%s AND id=%s;
+            """, (ten_thanh_vien, trinh_do, loai_thanh_vien, ghi_chu, doi_bong_id, thanh_vien_id))
+
+    @staticmethod
+    def delete_member(doi_bong_id, thanh_vien_id):
+        with db_cursor(commit=True) as cursor:
+            cursor.execute("""
+                UPDATE doi_bong_thanh_vien
+                SET active=FALSE, updated_at=CURRENT_TIMESTAMP
+                WHERE doi_bong_id=%s AND id=%s;
+            """, (doi_bong_id, thanh_vien_id))
+
+    @staticmethod
+    def get_month_config(doi_bong_id, thang):
+        thang = DoiBongModel.normalize_month(thang)
+        with db_cursor() as cursor:
+            cursor.execute("""
+                SELECT doi_bong_id, thang, COALESCE(muc_phi_thang, 0),
+                       COALESCE(chi_phi_san_bai, 0), COALESCE(chi_phi_nuoc_noi, 0),
+                       COALESCE(chi_phi_khac, 0), COALESCE(ghi_chu, '')
+                FROM doi_bong_quy_thang
+                WHERE doi_bong_id = %s AND thang = %s;
+            """, (doi_bong_id, thang))
+            row = cursor.fetchone()
+        if row:
+            return row
+        return (doi_bong_id, thang, 0, 0, 0, 0, "")
+
+    @staticmethod
+    def upsert_month_config(doi_bong_id, thang, muc_phi_thang, chi_phi_san_bai, chi_phi_nuoc_noi, chi_phi_khac, ghi_chu=""):
+        thang = DoiBongModel.normalize_month(thang)
+        with db_cursor(commit=True) as cursor:
+            cursor.execute("""
+                INSERT INTO doi_bong_quy_thang
+                    (doi_bong_id, thang, muc_phi_thang, chi_phi_san_bai, chi_phi_nuoc_noi, chi_phi_khac, ghi_chu)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (doi_bong_id, thang)
+                DO UPDATE SET
+                    muc_phi_thang=EXCLUDED.muc_phi_thang,
+                    chi_phi_san_bai=EXCLUDED.chi_phi_san_bai,
+                    chi_phi_nuoc_noi=EXCLUDED.chi_phi_nuoc_noi,
+                    chi_phi_khac=EXCLUDED.chi_phi_khac,
+                    ghi_chu=EXCLUDED.ghi_chu,
+                    updated_at=CURRENT_TIMESTAMP;
+            """, (doi_bong_id, thang, muc_phi_thang, chi_phi_san_bai, chi_phi_nuoc_noi, chi_phi_khac, ghi_chu))
+
+    @staticmethod
+    def update_payments(thang, updates):
+        thang = DoiBongModel.normalize_month(thang)
+        rows = [
+            (thanh_vien_id, thang, so_tien, trang_thai, ghi_chu)
+            for thanh_vien_id, so_tien, trang_thai, ghi_chu in updates
+        ]
+        if not rows:
+            return 0
+        with db_cursor(commit=True) as cursor:
+            cursor.executemany("""
+                INSERT INTO doi_bong_dong_phi
+                    (thanh_vien_id, thang, so_tien_da_dong, trang_thai_dong_tien, ghi_chu)
+                VALUES (%s, %s, %s, %s, %s)
+                ON CONFLICT (thanh_vien_id, thang)
+                DO UPDATE SET
+                    so_tien_da_dong=EXCLUDED.so_tien_da_dong,
+                    trang_thai_dong_tien=EXCLUDED.trang_thai_dong_tien,
+                    ghi_chu=EXCLUDED.ghi_chu,
+                    updated_at=CURRENT_TIMESTAMP;
+            """, rows)
+        return len(rows)
+
+    @staticmethod
+    def get_available_months(doi_bong_id):
+        with db_cursor() as cursor:
+            cursor.execute("""
+                SELECT DISTINCT to_char(thang, 'YYYY-MM') AS ym
+                FROM (
+                    SELECT thang FROM doi_bong_quy_thang WHERE doi_bong_id = %s
+                    UNION
+                    SELECT dp.thang
+                    FROM doi_bong_dong_phi dp
+                    INNER JOIN doi_bong_thanh_vien tv ON dp.thanh_vien_id = tv.id
+                    WHERE tv.doi_bong_id = %s
+                ) months
+                ORDER BY ym DESC;
+            """, (doi_bong_id, doi_bong_id))
+            return [row[0] for row in cursor.fetchall()]
+
+    @staticmethod
+    def get_previous_balance(doi_bong_id, selected_month):
+        selected_month = DoiBongModel.normalize_month(selected_month)
+        with db_cursor() as cursor:
+            cursor.execute("""
+                WITH months AS (
+                    SELECT generate_series(
+                        date_trunc('month', MIN(thang))::date,
+                        (%s::date - INTERVAL '1 month')::date,
+                        INTERVAL '1 month'
+                    )::date AS thang
+                    FROM (
+                        SELECT thang FROM doi_bong_quy_thang WHERE doi_bong_id = %s
+                        UNION
+                        SELECT dp.thang
+                        FROM doi_bong_dong_phi dp
+                        INNER JOIN doi_bong_thanh_vien tv ON dp.thanh_vien_id = tv.id
+                        WHERE tv.doi_bong_id = %s
+                    ) existing
+                    WHERE thang < %s::date
+                ),
+                thu AS (
+                    SELECT dp.thang, SUM(COALESCE(dp.so_tien_da_dong, 0)) AS tong_thu
+                    FROM doi_bong_dong_phi dp
+                    INNER JOIN doi_bong_thanh_vien tv ON dp.thanh_vien_id = tv.id
+                    WHERE tv.doi_bong_id = %s AND dp.thang < %s::date
+                    GROUP BY dp.thang
+                )
+                SELECT COALESCE(SUM(COALESCE(thu.tong_thu, 0)
+                    - COALESCE(q.chi_phi_san_bai, 0)
+                    - COALESCE(q.chi_phi_nuoc_noi, 0)
+                    - COALESCE(q.chi_phi_khac, 0)), 0)
+                FROM months m
+                LEFT JOIN thu ON thu.thang = m.thang
+                LEFT JOIN doi_bong_quy_thang q ON q.doi_bong_id = %s AND q.thang = m.thang;
+            """, (selected_month, doi_bong_id, doi_bong_id, selected_month, doi_bong_id, selected_month, doi_bong_id))
+            row = cursor.fetchone()
+            return float(row[0] or 0)
+
+
 class MatchModel:
     """Trận đấu"""
 

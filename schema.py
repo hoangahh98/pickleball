@@ -78,6 +78,64 @@ ON app_logs (created_at DESC);
 
 CREATE INDEX IF NOT EXISTS idx_user_actions_email_created
 ON user_actions (user_email, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS doi_bong (
+    id SERIAL PRIMARY KEY,
+    ten_doi VARCHAR(255) NOT NULL,
+    mo_ta TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS doi_bong_thanh_vien (
+    id SERIAL PRIMARY KEY,
+    doi_bong_id INTEGER NOT NULL REFERENCES doi_bong(id) ON DELETE CASCADE,
+    ten_thanh_vien VARCHAR(255) NOT NULL,
+    trinh_do VARCHAR(10) DEFAULT 'C',
+    loai_thanh_vien VARCHAR(20) DEFAULT 'co_dinh',
+    ghi_chu TEXT,
+    active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS doi_bong_quy_thang (
+    id SERIAL PRIMARY KEY,
+    doi_bong_id INTEGER NOT NULL REFERENCES doi_bong(id) ON DELETE CASCADE,
+    thang DATE NOT NULL,
+    muc_phi_thang NUMERIC(12, 2) DEFAULT 0,
+    chi_phi_san_bai NUMERIC(12, 2) DEFAULT 0,
+    chi_phi_nuoc_noi NUMERIC(12, 2) DEFAULT 0,
+    chi_phi_khac NUMERIC(12, 2) DEFAULT 0,
+    ghi_chu TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (doi_bong_id, thang)
+);
+
+CREATE TABLE IF NOT EXISTS doi_bong_dong_phi (
+    id SERIAL PRIMARY KEY,
+    thanh_vien_id INTEGER NOT NULL REFERENCES doi_bong_thanh_vien(id) ON DELETE CASCADE,
+    thang DATE NOT NULL,
+    so_tien_da_dong NUMERIC(12, 2) DEFAULT 0,
+    trang_thai_dong_tien VARCHAR(50) DEFAULT 'Chưa đóng',
+    ghi_chu TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (thanh_vien_id, thang)
+);
+
+CREATE INDEX IF NOT EXISTS idx_doi_bong_ten
+ON doi_bong (ten_doi);
+
+CREATE INDEX IF NOT EXISTS idx_doi_bong_thanh_vien_doi
+ON doi_bong_thanh_vien (doi_bong_id, active, ten_thanh_vien);
+
+CREATE INDEX IF NOT EXISTS idx_doi_bong_quy_thang
+ON doi_bong_quy_thang (doi_bong_id, thang);
+
+CREATE INDEX IF NOT EXISTS idx_doi_bong_dong_phi_thang
+ON doi_bong_dong_phi (thang, thanh_vien_id);
 """
 
 

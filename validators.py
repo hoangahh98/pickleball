@@ -3,6 +3,7 @@ import re
 
 VALID_TRINH_DO = {"A", "B", "C", "D"}
 VALID_LOAI_DAU = {"don", "doi"}
+VALID_LOAI_THANH_VIEN = {"co_dinh", "vang_lai"}
 EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 
@@ -101,4 +102,61 @@ def normalize_tournament_form(form):
         "loai_dau": loai_dau,
         **numeric_fields,
     }
+    return data, errors
+
+
+def normalize_team_form(form):
+    ten_doi = (form.get("ten_doi") or "").strip()
+    mo_ta = (form.get("mo_ta") or "").strip()
+
+    errors = []
+    if not ten_doi:
+        errors.append("Tên đội bóng không được để trống.")
+
+    return {"ten_doi": ten_doi, "mo_ta": mo_ta}, errors
+
+
+def normalize_team_member_form(form):
+    ten_thanh_vien = (form.get("ten_thanh_vien") or "").strip()
+    trinh_do = (form.get("trinh_do") or "C").strip().upper()
+    loai_thanh_vien = (form.get("loai_thanh_vien") or "co_dinh").strip()
+    ghi_chu = (form.get("ghi_chu") or "").strip()
+
+    errors = []
+    if not ten_thanh_vien:
+        errors.append("Tên thành viên không được để trống.")
+    if trinh_do not in VALID_TRINH_DO:
+        errors.append("Trình độ chỉ được chọn A, B, C hoặc D.")
+        trinh_do = "C"
+    if loai_thanh_vien not in VALID_LOAI_THANH_VIEN:
+        errors.append("Loại thành viên không hợp lệ.")
+        loai_thanh_vien = "co_dinh"
+
+    return {
+        "ten_thanh_vien": ten_thanh_vien,
+        "trinh_do": trinh_do,
+        "loai_thanh_vien": loai_thanh_vien,
+        "ghi_chu": ghi_chu,
+    }, errors
+
+
+def normalize_team_month_form(form):
+    errors = []
+    try:
+        data = {
+            "muc_phi_thang": _parse_money_field(form.get("muc_phi_thang")),
+            "chi_phi_san_bai": _parse_money_field(form.get("chi_phi_san_bai")),
+            "chi_phi_nuoc_noi": _parse_money_field(form.get("chi_phi_nuoc_noi")),
+            "chi_phi_khac": _parse_money_field(form.get("chi_phi_khac")),
+            "ghi_chu": (form.get("ghi_chu") or "").strip(),
+        }
+    except ValueError:
+        errors.append("Các trường tiền chỉ được nhập số hợp lệ.")
+        data = {
+            "muc_phi_thang": 0,
+            "chi_phi_san_bai": 0,
+            "chi_phi_nuoc_noi": 0,
+            "chi_phi_khac": 0,
+            "ghi_chu": (form.get("ghi_chu") or "").strip(),
+        }
     return data, errors

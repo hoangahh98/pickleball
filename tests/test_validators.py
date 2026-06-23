@@ -1,6 +1,12 @@
 import unittest
 
-from validators import normalize_tournament_form, normalize_vdv_form
+from validators import (
+    normalize_team_form,
+    normalize_team_member_form,
+    normalize_team_month_form,
+    normalize_tournament_form,
+    normalize_vdv_form,
+)
 
 
 class NormalizeVdvFormTest(unittest.TestCase):
@@ -57,6 +63,47 @@ class NormalizeTournamentFormTest(unittest.TestCase):
         self.assertEqual(data["so_luong_san"], 1)
         self.assertIn("Tên giải không được để trống.", errors)
         self.assertIn("Các trường số chỉ được nhập số hợp lệ.", errors)
+
+    def test_allows_zero_prize_ratio(self):
+        data, errors = normalize_tournament_form({
+            "ten_giai_dau": "Giai 1 va 2",
+            "ty_le_giai_1": "7",
+            "ty_le_giai_2": "3",
+            "ty_le_giai_3": "0",
+        })
+
+        self.assertEqual(errors, [])
+        self.assertEqual(data["ty_le_giai_1"], 7)
+        self.assertEqual(data["ty_le_giai_2"], 3)
+        self.assertEqual(data["ty_le_giai_3"], 0)
+
+class NormalizeTeamFormTest(unittest.TestCase):
+    def test_normalizes_team_and_member_forms(self):
+        team, team_errors = normalize_team_form({"ten_doi": "  Team A  ", "mo_ta": "  Note  "})
+        member, member_errors = normalize_team_member_form({
+            "ten_thanh_vien": "  Player A ",
+            "trinh_do": "b",
+            "loai_thanh_vien": "vang_lai",
+            "ghi_chu": "  ok ",
+        })
+
+        self.assertEqual(team_errors, [])
+        self.assertEqual(team["ten_doi"], "Team A")
+        self.assertEqual(member_errors, [])
+        self.assertEqual(member["trinh_do"], "B")
+        self.assertEqual(member["loai_thanh_vien"], "vang_lai")
+
+    def test_normalizes_team_month_money_fields(self):
+        data, errors = normalize_team_month_form({
+            "muc_phi_thang": "100000",
+            "chi_phi_san_bai": "50000",
+            "chi_phi_nuoc_noi": "",
+            "chi_phi_khac": "25000",
+        })
+
+        self.assertEqual(errors, [])
+        self.assertEqual(data["muc_phi_thang"], 100000)
+        self.assertEqual(data["chi_phi_nuoc_noi"], 0)
 
 
 if __name__ == "__main__":

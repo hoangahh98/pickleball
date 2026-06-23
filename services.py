@@ -11,7 +11,10 @@ class FinanceService:
         giai_id, ten, so_san, dia_diem, cp_san, cp_nuoc, cp_giai_goc, cp_khac, tl1, tl2, tl3, so_nguoi_du_kien, thoi_gian, banner, qr = giai_base
         
         cp_san, cp_nuoc, cp_giai_goc, cp_khac = cp_san or 0, cp_nuoc or 0, cp_giai_goc or 0, cp_khac or 0
-        tl1, tl2, tl3, so_nguoi_du_kien = tl1 or 5, tl2 or 3, tl3 or 2, so_nguoi_du_kien or 10
+        tl1 = 5 if tl1 is None else tl1
+        tl2 = 3 if tl2 is None else tl2
+        tl3 = 2 if tl3 is None else tl3
+        so_nguoi_du_kien = so_nguoi_du_kien or 10
         tong_chi_phi_goc = cp_san + cp_nuoc + cp_giai_goc + cp_khac
         
         muc_chia_deu = tong_chi_phi_goc / so_nguoi_du_kien if so_nguoi_du_kien > 0 else 0
@@ -61,4 +64,61 @@ class FinanceService:
             "thoi_gian_bat_dau": thoi_gian,
             "banner_image": banner,
             "qr_image": qr
+        }
+
+    @staticmethod
+    def tinh_toan_quy_doi_bong(month_config, members, quy_du_thang_truoc=0):
+        if not month_config:
+            month_config = (None, None, 0, 0, 0, 0, "")
+
+        _, thang, muc_phi_thang, cp_san, cp_nuoc, cp_khac, ghi_chu = month_config
+        muc_phi_thang = float(muc_phi_thang or 0)
+        cp_san = float(cp_san or 0)
+        cp_nuoc = float(cp_nuoc or 0)
+        cp_khac = float(cp_khac or 0)
+        quy_du_thang_truoc = float(quy_du_thang_truoc or 0)
+
+        member_rows = []
+        tong_thu = 0
+        tong_donate = 0
+        for member in members:
+            (
+                member_id, ten, trinh_do, loai_thanh_vien, ghi_chu_tv,
+                so_tien_da_dong, trang_thai_dong_tien, ghi_chu_phi, payment_id
+            ) = member
+            so_tien_da_dong = float(so_tien_da_dong or 0)
+            donate = max(0, so_tien_da_dong - muc_phi_thang)
+            tong_thu += so_tien_da_dong
+            tong_donate += donate
+            member_rows.append({
+                "id": member_id,
+                "payment_id": payment_id,
+                "ten": ten,
+                "trinh_do": trinh_do,
+                "loai_thanh_vien": loai_thanh_vien,
+                "loai_hien_thi": "Vãng lai" if loai_thanh_vien == "vang_lai" else "Cố định",
+                "ghi_chu": ghi_chu_tv,
+                "so_tien_da_dong": so_tien_da_dong,
+                "trang_thai_dong_tien": trang_thai_dong_tien or "Chưa đóng",
+                "ghi_chu_phi": ghi_chu_phi,
+                "donate": donate,
+                "chenh_lech": so_tien_da_dong - muc_phi_thang,
+            })
+
+        tong_chi = cp_san + cp_nuoc + cp_khac
+        quy_con_lai = quy_du_thang_truoc + tong_thu - tong_chi
+
+        return {
+            "thang": thang,
+            "muc_phi_thang": muc_phi_thang,
+            "chi_phi_san_bai": cp_san,
+            "chi_phi_nuoc_noi": cp_nuoc,
+            "chi_phi_khac": cp_khac,
+            "ghi_chu": ghi_chu,
+            "quy_du_thang_truoc": quy_du_thang_truoc,
+            "tong_thu": tong_thu,
+            "tong_donate": tong_donate,
+            "tong_chi": tong_chi,
+            "quy_con_lai": quy_con_lai,
+            "thanh_vien_list": member_rows,
         }

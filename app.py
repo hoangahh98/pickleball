@@ -4,7 +4,7 @@ All logs stored in app_logs table
 """
 
 from flask import Flask, render_template, request, redirect, url_for, session, jsonify, g, send_from_directory, make_response
-from models import VanDongVienModel, TournamentModel, DangKyGiaiModel, MatchModel
+from models import VanDongVienModel, TournamentModel, DangKyGiaiModel, DoiBongModel, MatchModel
 from services import FinanceService
 from knockout_logic import MatchSchedulerService
 from auth import AuthService, login_required, admin_required
@@ -13,7 +13,14 @@ from db import db_cursor
 from logging_service import DBLogger, DBLogViewer
 import traceback
 import time
-from validators import normalize_tournament_form, normalize_vdv_form
+from datetime import date
+from validators import (
+    normalize_tournament_form,
+    normalize_vdv_form,
+    normalize_team_form,
+    normalize_team_member_form,
+    normalize_team_month_form,
+)
 from werkzeug.exceptions import HTTPException
 
 app = Flask(__name__)
@@ -165,9 +172,21 @@ def doc_diem_giao_luu():
 @app.route('/')
 @login_required
 def trang_chu():
-    """Trang chủ admin"""
     user = session.get('user', {})
     DBLogger.log_request('GET', '/', user.get('email'))
+
+    if user.get('role') != 'admin':
+        return redirect(url_for('vdv_dashboard'))
+
+    return render_template('chon_cau_phan.html')
+
+
+@app.route('/giai-dau')
+@login_required
+def quan_ly_giai_dau():
+    """Trang chủ admin"""
+    user = session.get('user', {})
+    DBLogger.log_request('GET', '/giai-dau', user.get('email'))
     
     if user.get('role') != 'admin':
         return redirect(url_for('vdv_dashboard'))
@@ -197,12 +216,12 @@ def trang_chu():
                 danh_sach_giai.append(giai_detail)
             except Exception as e:
                 error_msg = f"Error loading tournament {row[0]}: {str(e)}"
-                DBLogger.log_error(error_msg, user.get('email'), '/', context=traceback.format_exc())
+                DBLogger.log_error(error_msg, user.get('email'), '/giai-dau', context=traceback.format_exc())
                 continue
         
         return render_template('index.html', danh_sach_giai=danh_sach_giai)
     except Exception as e:
-        DBLogger.log_error(f"Error loading tournaments: {str(e)}", user.get('email'), '/', context=traceback.format_exc())
+        DBLogger.log_error(f"Error loading tournaments: {str(e)}", user.get('email'), '/giai-dau', context=traceback.format_exc())
         return f"❌ Error: {str(e)}", 500
 
 # ============ LOGGING VIEWER (ADMIN ONLY) ============
@@ -356,6 +375,224 @@ def xoa_van_dong_vien(vdv_id):
         DBLogger.log_error(f"Error deleting VĐV: {str(e)}", user.get('email'), f'/van-dong-vien/{vdv_id}/xoa', context=traceback.format_exc())
         return f"❌ Error: {str(e)}", 500
 
+# ============ TEAM MANAGEMENT ============
+
+def _current_month():
+    return date.today().strftime('%Y-%m')
+
+
+def _money_from_form(value):
+    try:
+        return float(value or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
+@app.route('/doi-bong')
+@admin_required
+def doi_bong_list():
+    user = session.get('user', {})
+    try:
+        doi_bong_list = DoiBongModel.get_all()
+        DBLogger.log_request('GET', '/doi-bong', user.get('email'))
+        return render_template('doi_bong.html', doi_bong_list=doi_bong_list)
+    except Exception as e:
+        DBLogger.log_error(f"Error loading teams: {str(e)}", user.get('email'), '/doi-bong', context=traceback.format_exc())
+        return f"Error: {str(e)}", 500
+
+
+@app.route('/doi-bong/them', methods=['POST'])
+@admin_required
+def them_doi_bong():
+    user = session.get('user', {})
+    try:
+        form_data, errors = normalize_team_form(request.form)
+        if errors:
+            doi_bong_list = DoiBongModel.get_all()
+            return render_template('doi_bong.html', doi_bong_list=doi_bong_list, errors=errors, form_data=form_data), 400
+
+        doi_bong_id = DoiBongModel.create(form_data['ten_doi'], form_data['mo_ta'])
+        DBLogger.log_success(f"Team created: {form_data['ten_doi']}", user.get('email'), '/doi-bong/them')
+        return redirect(f'/doi-bong/{doi_bong_id}')
+    except Exception as e:
+        DBLogger.log_error(f"Error creating team: {str(e)}", user.get('email'), '/doi-bong/them', context=traceback.format_exc())
+        return f"Error: {str(e)}", 500
+
+
+@app.route('/doi-bong/<int:doi_bong_id>/sua', methods=['GET', 'POST'])
+@admin_required
+def sua_doi_bong(doi_bong_id):
+    user = session.get('user', {})
+    try:
+        doi_bong = DoiBongModel.get_by_id(doi_bong_id)
+        if not doi_bong:
+            return "Không tìm thấy đội bóng", 404
+        if request.method == 'GET':
+            return render_template('sua_doi_bong.html', doi_bong=doi_bong, errors=[])
+
+        form_data, errors = normalize_team_form(request.form)
+        if errors:
+            doi_bong_form = (doi_bong_id, form_data['ten_doi'], form_data['mo_ta'])
+            return render_template('sua_doi_bong.html', doi_bong=doi_bong_form, errors=errors), 400
+
+        DoiBongModel.update(doi_bong_id, form_data['ten_doi'], form_data['mo_ta'])
+        DBLogger.log_success(f"Team updated: {form_data['ten_doi']}", user.get('email'), f'/doi-bong/{doi_bong_id}/sua')
+        return redirect('/doi-bong')
+    except Exception as e:
+        DBLogger.log_error(f"Error updating team: {str(e)}", user.get('email'), f'/doi-bong/{doi_bong_id}/sua', context=traceback.format_exc())
+        return f"Error: {str(e)}", 500
+
+
+@app.route('/doi-bong/<int:doi_bong_id>/xoa')
+@admin_required
+def xoa_doi_bong(doi_bong_id):
+    user = session.get('user', {})
+    try:
+        DoiBongModel.delete(doi_bong_id)
+        DBLogger.log_success(f"Team deleted: {doi_bong_id}", user.get('email'), f'/doi-bong/{doi_bong_id}/xoa')
+        return redirect('/doi-bong')
+    except Exception as e:
+        DBLogger.log_error(f"Error deleting team: {str(e)}", user.get('email'), f'/doi-bong/{doi_bong_id}/xoa', context=traceback.format_exc())
+        return f"Error: {str(e)}", 500
+
+
+@app.route('/doi-bong/<int:doi_bong_id>')
+@admin_required
+def chi_tiet_doi_bong(doi_bong_id):
+    user = session.get('user', {})
+    try:
+        doi_bong = DoiBongModel.get_by_id(doi_bong_id)
+        if not doi_bong:
+            return "Không tìm thấy đội bóng", 404
+
+        selected_month = request.args.get('thang') or _current_month()
+        selected_month_date = DoiBongModel.normalize_month(selected_month)
+        month_config = DoiBongModel.get_month_config(doi_bong_id, selected_month_date)
+        members = DoiBongModel.get_members_with_payments(doi_bong_id, selected_month_date)
+        previous_balance = DoiBongModel.get_previous_balance(doi_bong_id, selected_month_date)
+        finance = FinanceService.tinh_toan_quy_doi_bong(month_config, members, previous_balance)
+        available_months = DoiBongModel.get_available_months(doi_bong_id)
+        if selected_month[:7] not in available_months:
+            available_months.insert(0, selected_month[:7])
+
+        DBLogger.log_request('GET', f'/doi-bong/{doi_bong_id}', user.get('email'))
+        return render_template(
+            'chi_tiet_doi_bong.html',
+            doi_bong=doi_bong,
+            finance=finance,
+            selected_month=selected_month[:7],
+            available_months=available_months,
+        )
+    except Exception as e:
+        DBLogger.log_error(f"Error loading team detail: {str(e)}", user.get('email'), f'/doi-bong/{doi_bong_id}', context=traceback.format_exc())
+        return f"Error: {str(e)}", 500
+
+
+@app.route('/doi-bong/<int:doi_bong_id>/cap-nhat-quy', methods=['POST'])
+@admin_required
+def cap_nhat_quy_doi_bong(doi_bong_id):
+    user = session.get('user', {})
+    selected_month = request.form.get('thang') or _current_month()
+    try:
+        form_data, errors = normalize_team_month_form(request.form)
+        if not errors:
+            DoiBongModel.upsert_month_config(
+                doi_bong_id,
+                selected_month,
+                form_data['muc_phi_thang'],
+                form_data['chi_phi_san_bai'],
+                form_data['chi_phi_nuoc_noi'],
+                form_data['chi_phi_khac'],
+                form_data['ghi_chu'],
+            )
+            DBLogger.log_success(f"Team month fund updated: {doi_bong_id} {selected_month}", user.get('email'), f'/doi-bong/{doi_bong_id}/cap-nhat-quy')
+        return redirect(f'/doi-bong/{doi_bong_id}?thang={selected_month}')
+    except Exception as e:
+        DBLogger.log_error(f"Error updating team month fund: {str(e)}", user.get('email'), f'/doi-bong/{doi_bong_id}/cap-nhat-quy', context=traceback.format_exc())
+        return f"Error: {str(e)}", 500
+
+
+@app.route('/doi-bong/<int:doi_bong_id>/thanh-vien/them', methods=['POST'])
+@admin_required
+def them_thanh_vien_doi_bong(doi_bong_id):
+    user = session.get('user', {})
+    selected_month = request.form.get('thang') or _current_month()
+    try:
+        form_data, errors = normalize_team_member_form(request.form)
+        if not errors:
+            DoiBongModel.add_member(
+                doi_bong_id,
+                form_data['ten_thanh_vien'],
+                form_data['trinh_do'],
+                form_data['loai_thanh_vien'],
+                form_data['ghi_chu'],
+            )
+            DBLogger.log_success(f"Team member added: {form_data['ten_thanh_vien']}", user.get('email'), f'/doi-bong/{doi_bong_id}/thanh-vien/them')
+        return redirect(f'/doi-bong/{doi_bong_id}?thang={selected_month}')
+    except Exception as e:
+        DBLogger.log_error(f"Error adding team member: {str(e)}", user.get('email'), f'/doi-bong/{doi_bong_id}/thanh-vien/them', context=traceback.format_exc())
+        return f"Error: {str(e)}", 500
+
+
+@app.route('/doi-bong/<int:doi_bong_id>/thanh-vien/<int:thanh_vien_id>/sua', methods=['POST'])
+@admin_required
+def sua_thanh_vien_doi_bong(doi_bong_id, thanh_vien_id):
+    user = session.get('user', {})
+    selected_month = request.form.get('thang') or _current_month()
+    try:
+        form_data, errors = normalize_team_member_form(request.form)
+        if not errors:
+            DoiBongModel.update_member(
+                doi_bong_id,
+                thanh_vien_id,
+                form_data['ten_thanh_vien'],
+                form_data['trinh_do'],
+                form_data['loai_thanh_vien'],
+                form_data['ghi_chu'],
+            )
+            DBLogger.log_success(f"Team member updated: {thanh_vien_id}", user.get('email'), f'/doi-bong/{doi_bong_id}/thanh-vien/{thanh_vien_id}/sua')
+        return redirect(f'/doi-bong/{doi_bong_id}?thang={selected_month}')
+    except Exception as e:
+        DBLogger.log_error(f"Error updating team member: {str(e)}", user.get('email'), f'/doi-bong/{doi_bong_id}/thanh-vien/{thanh_vien_id}/sua', context=traceback.format_exc())
+        return f"Error: {str(e)}", 500
+
+
+@app.route('/doi-bong/<int:doi_bong_id>/thanh-vien/<int:thanh_vien_id>/xoa')
+@admin_required
+def xoa_thanh_vien_doi_bong(doi_bong_id, thanh_vien_id):
+    user = session.get('user', {})
+    selected_month = request.args.get('thang') or _current_month()
+    try:
+        DoiBongModel.delete_member(doi_bong_id, thanh_vien_id)
+        DBLogger.log_success(f"Team member deleted: {thanh_vien_id}", user.get('email'), f'/doi-bong/{doi_bong_id}/thanh-vien/{thanh_vien_id}/xoa')
+        return redirect(f'/doi-bong/{doi_bong_id}?thang={selected_month}')
+    except Exception as e:
+        DBLogger.log_error(f"Error deleting team member: {str(e)}", user.get('email'), f'/doi-bong/{doi_bong_id}/thanh-vien/{thanh_vien_id}/xoa', context=traceback.format_exc())
+        return f"Error: {str(e)}", 500
+
+
+@app.route('/doi-bong/<int:doi_bong_id>/cap-nhat-dong-phi', methods=['POST'])
+@admin_required
+def cap_nhat_dong_phi_doi_bong(doi_bong_id):
+    user = session.get('user', {})
+    selected_month = request.form.get('thang') or _current_month()
+    try:
+        members = DoiBongModel.get_members_with_payments(doi_bong_id, selected_month)
+        updates = []
+        for member in members:
+            member_id = member[0]
+            so_tien = _money_from_form(request.form.get(f'tien_{member_id}', 0))
+            trang_thai = request.form.get(f'trang_thai_{member_id}', 'Chưa đóng')
+            ghi_chu = (request.form.get(f'ghi_chu_phi_{member_id}') or '').strip()
+            updates.append((member_id, so_tien, trang_thai, ghi_chu))
+        updated = DoiBongModel.update_payments(selected_month, updates)
+        DBLogger.log_success(f"Team fee updated: {updated} records for team {doi_bong_id}", user.get('email'), f'/doi-bong/{doi_bong_id}/cap-nhat-dong-phi')
+        return redirect(f'/doi-bong/{doi_bong_id}?thang={selected_month}')
+    except Exception as e:
+        DBLogger.log_error(f"Error updating team fees: {str(e)}", user.get('email'), f'/doi-bong/{doi_bong_id}/cap-nhat-dong-phi', context=traceback.format_exc())
+        return f"Error: {str(e)}", 500
+
+
 # ============ TOURNAMENT MANAGEMENT ============
 
 @app.route('/them-giai-dau', methods=['POST'])
@@ -394,7 +631,7 @@ def them_giai_dau():
                 loai_dau
             ))
         DBLogger.log_success(f"Tournament created: {form_data['ten_giai_dau']} ({loai_dau})", user.get('email'), '/them-giai-dau')
-        return redirect('/')
+        return redirect('/giai-dau')
     except Exception as e:
         DBLogger.log_error(f"Error creating tournament: {str(e)}", user.get('email'), '/them-giai-dau', context=traceback.format_exc())
         return f"❌ Error: {str(e)}", 500
@@ -451,7 +688,7 @@ def sua_giai_dau(giai_id):
                 giai_id
             ))
         DBLogger.log_success(f"Tournament {giai_id} updated ({loai_dau})", user.get('email'), f'/sua-giai-dau/{giai_id}')
-        return redirect('/')
+        return redirect('/giai-dau')
     except Exception as e:
         DBLogger.log_error(f"Error updating tournament: {str(e)}", user.get('email'), f'/sua-giai-dau/{giai_id}', context=traceback.format_exc())
         return f"❌ Error: {str(e)}", 500
@@ -465,7 +702,7 @@ def xoa_giai_dau(giai_id):
         with db_cursor(commit=True) as cursor:
             cursor.execute("DELETE FROM giai_dau WHERE id = %s;", (giai_id,))
         DBLogger.log_success(f"Tournament {giai_id} deleted", user.get('email'), f'/xoa-giai-dau/{giai_id}')
-        return redirect('/')
+        return redirect('/giai-dau')
     except Exception as e:
         DBLogger.log_error(f"Error deleting tournament: {str(e)}", user.get('email'), f'/xoa-giai-dau/{giai_id}', context=traceback.format_exc())
         return f"❌ Error: {str(e)}", 500

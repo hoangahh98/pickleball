@@ -79,7 +79,7 @@
     <div class="container-fluid">
         <span class="navbar-brand mb-0 h1 fs-6">🏸 {{ giai.ten_giai_dau }}</span>
         <div class="d-flex gap-2">
-            <a href="/" class="btn btn-sm btn-outline-light">⬅️ Trang chủ</a>
+            <a href="/giai-dau" class="btn btn-sm btn-outline-light">⬅️ Giải đấu</a>
             <a href="/dang-xuat" class="btn btn-sm btn-outline-danger">🚪 Đăng xuất</a>
         </div>
     </div>
@@ -827,10 +827,21 @@ function getCurrentScoreSpeechText() {
     const diemB = normalizeScoreValue(scoreInputB.value) || 0;
     const thuTuDanh = document.querySelector('input[name="scoreOrder"]:checked')?.value || '2';
     const doiDangGiao = document.querySelector('input[name="servingTeam"]:checked')?.value || 'A';
-    if (doiDangGiao === 'B') {
-        return `${readVietnameseNumber(diemB)} ${readVietnameseNumber(diemA)} ${readVietnameseNumber(thuTuDanh)}`;
+    const scoreText = doiDangGiao === 'B'
+        ? `${readVietnameseNumber(diemB)} ${readVietnameseNumber(diemA)} ${readVietnameseNumber(thuTuDanh)}`
+        : `${readVietnameseNumber(diemA)} ${readVietnameseNumber(diemB)} ${readVietnameseNumber(thuTuDanh)}`;
+    const winnerName = getWinnerName(diemA, diemB);
+    return winnerName ? `${scoreText}. Chúc mừng đội ${winnerName} chiến thắng` : scoreText;
+}
+
+function getWinnerName(diemA, diemB) {
+    const diff = Math.abs(diemA - diemB);
+    const high = Math.max(diemA, diemB);
+    const finished = high >= SCORE_MAX || (high >= SCORE_TOUCH && diff >= 2);
+    if (!finished || diemA === diemB || !activeMatchCard) {
+        return null;
     }
-    return `${readVietnameseNumber(diemA)} ${readVietnameseNumber(diemB)} ${readVietnameseNumber(thuTuDanh)}`;
+    return diemA > diemB ? activeMatchCard.dataset.teamA : activeMatchCard.dataset.teamB;
 }
 
 function loadVietnameseVoice() {
