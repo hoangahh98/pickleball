@@ -96,6 +96,13 @@ CREATE TABLE IF NOT EXISTS doi_bong (
 ALTER TABLE doi_bong
 ADD COLUMN IF NOT EXISTS owner_admin_id INTEGER REFERENCES users(id) ON DELETE SET NULL;
 
+UPDATE doi_bong
+SET owner_admin_id = COALESCE(
+    (SELECT id FROM users WHERE lower(email) = lower('admin@pickleball') LIMIT 1),
+    (SELECT id FROM users WHERE role = 'admin' ORDER BY id ASC LIMIT 1)
+)
+WHERE owner_admin_id IS NULL;
+
 CREATE TABLE IF NOT EXISTS doi_bong_thanh_vien (
     id SERIAL PRIMARY KEY,
     doi_bong_id INTEGER NOT NULL REFERENCES doi_bong(id) ON DELETE CASCADE,

@@ -253,7 +253,7 @@ class DoiBongModel:
                     FROM doi_bong d
                     LEFT JOIN doi_bong_thanh_vien tv ON d.id = tv.doi_bong_id AND tv.active = TRUE
                     LEFT JOIN doi_bong_admin_quyen q ON d.id = q.doi_bong_id AND q.admin_id = %s
-                    WHERE d.owner_admin_id = %s OR q.admin_id IS NOT NULL OR d.owner_admin_id IS NULL
+                    WHERE d.owner_admin_id = %s OR q.admin_id IS NOT NULL
                     GROUP BY d.id
                     ORDER BY d.id DESC;
                 """, (admin_id, admin_id))
@@ -275,7 +275,7 @@ class DoiBongModel:
                     SELECT d.id, d.ten_doi, d.mo_ta, d.owner_admin_id
                     FROM doi_bong d
                     LEFT JOIN doi_bong_admin_quyen q ON d.id = q.doi_bong_id AND q.admin_id = %s
-                    WHERE d.id = %s AND (d.owner_admin_id = %s OR q.admin_id IS NOT NULL OR d.owner_admin_id IS NULL);
+                    WHERE d.id = %s AND (d.owner_admin_id = %s OR q.admin_id IS NOT NULL);
                 """, (admin_id, doi_bong_id, admin_id))
             else:
                 cursor.execute("SELECT id, ten_doi, mo_ta, owner_admin_id FROM doi_bong WHERE id = %s;", (doi_bong_id,))

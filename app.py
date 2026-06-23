@@ -491,7 +491,7 @@ def chi_tiet_doi_bong(doi_bong_id):
         owner_admin_id = doi_bong[3]
         admins = [
             admin for admin in AdminUserModel.get_all()
-            if admin[0] != owner_admin_id and admin[0] not in permission_admin_ids
+            if admin[0] != owner_admin_id and admin[0] != user.get('id') and admin[0] not in permission_admin_ids
         ]
         is_owner = doi_bong[3] in (None, user.get('id'))
 
