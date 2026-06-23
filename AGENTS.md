@@ -43,5 +43,16 @@ Recent commits use short Vietnamese summaries such as `thay toan bo app pickleba
 
 Pull requests should include a short description, manual test steps, database or configuration changes, and screenshots for visible UI updates. Link related issues when available.
 
+## Automatic Git Push Workflow
+After completing a requested change, run the relevant checks, then automatically push the result to `origin master`. Use the next increasing number from previous `auto push git N` commit messages:
+
+```powershell
+git add .
+git commit -m "auto push git N"
+git push -u origin master -f
+```
+
+Replace `N` with the next number in sequence. Exclude generated cache files such as `__pycache__/` before committing.
+
 ## Security & Configuration Tips
 Keep secrets and deployment-specific settings out of source control. Use environment variables or a local `.env` file for values consumed by `config.py`, including database credentials and Flask secret keys. Do not commit uploaded private images or production data.

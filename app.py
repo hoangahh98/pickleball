@@ -927,6 +927,7 @@ def chi_tiet_giai_admin(giai_id):
         permissions = TournamentModel.get_permissions(giai_id)
         permission_admin_ids = {permission[1] for permission in permissions}
         owner_admin_id = giai_detail.get('owner_admin_id')
+        owner_admin = AdminUserModel.get_by_id(owner_admin_id) if owner_admin_id else None
         admins = [
             admin for admin in AdminUserModel.get_all()
             if admin[0] != owner_admin_id and admin[0] != user.get('id') and admin[0] not in permission_admin_ids
@@ -941,6 +942,7 @@ def chi_tiet_giai_admin(giai_id):
             enumerate=enumerate,
             base_url=BASE_URL,
             admins=admins,
+            owner_admin=owner_admin,
             permissions=permissions,
             is_owner=is_owner,
         )
