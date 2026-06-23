@@ -4,7 +4,7 @@ All logs stored in app_logs table
 """
 
 from flask import Flask, render_template, request, redirect, url_for, session, jsonify, g, send_from_directory, make_response
-from models import VanDongVienModel, TournamentModel, DangKyGiaiModel, DoiBongModel, MatchModel
+from models import VanDongVienModel, AdminUserModel, TournamentModel, DangKyGiaiModel, DoiBongModel, MatchModel
 from services import FinanceService
 from knockout_logic import MatchSchedulerService
 from auth import AuthService, login_required, admin_required
@@ -20,6 +20,7 @@ from validators import (
     normalize_team_form,
     normalize_team_member_form,
     normalize_team_month_form,
+    normalize_team_expense_form,
 )
 from werkzeug.exceptions import HTTPException
 
@@ -388,12 +389,19 @@ def _money_from_form(value):
         return 0
 
 
+def _get_team_for_admin_or_403(doi_bong_id, user):
+    doi_bong = DoiBongModel.get_by_id(doi_bong_id, user.get('id'))
+    if not doi_bong:
+        return None
+    return doi_bong
+
+
 @app.route('/doi-bong')
 @admin_required
 def doi_bong_list():
     user = session.get('user', {})
     try:
-        doi_bong_list = DoiBongModel.get_all()
+        doi_bong_list = DoiBongModel.get_all(user.get('id'))
         DBLogger.log_request('GET', '/doi-bong', user.get('email'))
         return render_template('doi_bong.html', doi_bong_list=doi_bong_list)
     except Exception as e:
@@ -408,10 +416,10 @@ def them_doi_bong():
     try:
         form_data, errors = normalize_team_form(request.form)
         if errors:
-            doi_bong_list = DoiBongModel.get_all()
+            doi_bong_list = DoiBongModel.get_all(user.get('id'))
             return render_template('doi_bong.html', doi_bong_list=doi_bong_list, errors=errors, form_data=form_data), 400
 
-        doi_bong_id = DoiBongModel.create(form_data['ten_doi'], form_data['mo_ta'])
+        doi_bong_id = DoiBongModel.create(form_data['ten_doi'], form_data['mo_ta'], user.get('id'))
         DBLogger.log_success(f"Team created: {form_data['ten_doi']}", user.get('email'), '/doi-bong/them')
         return redirect(f'/doi-bong/{doi_bong_id}')
     except Exception as e:
@@ -424,7 +432,7 @@ def them_doi_bong():
 def sua_doi_bong(doi_bong_id):
     user = session.get('user', {})
     try:
-        doi_bong = DoiBongModel.get_by_id(doi_bong_id)
+        doi_bong = _get_team_for_admin_or_403(doi_bong_id, user)
         if not doi_bong:
             return "Không tìm thấy đội bóng", 404
         if request.method == 'GET':
@@ -448,6 +456,8 @@ def sua_doi_bong(doi_bong_id):
 def xoa_doi_bong(doi_bong_id):
     user = session.get('user', {})
     try:
+        if not _get_team_for_admin_or_403(doi_bong_id, user):
+            return "Không có quyền xóa đội bóng này", 403
         DoiBongModel.delete(doi_bong_id)
         DBLogger.log_success(f"Team deleted: {doi_bong_id}", user.get('email'), f'/doi-bong/{doi_bong_id}/xoa')
         return redirect('/doi-bong')
@@ -461,7 +471,7 @@ def xoa_doi_bong(doi_bong_id):
 def chi_tiet_doi_bong(doi_bong_id):
     user = session.get('user', {})
     try:
-        doi_bong = DoiBongModel.get_by_id(doi_bong_id)
+        doi_bong = _get_team_for_admin_or_403(doi_bong_id, user)
         if not doi_bong:
             return "Không tìm thấy đội bóng", 404
 
@@ -469,11 +479,16 @@ def chi_tiet_doi_bong(doi_bong_id):
         selected_month_date = DoiBongModel.normalize_month(selected_month)
         month_config = DoiBongModel.get_month_config(doi_bong_id, selected_month_date)
         members = DoiBongModel.get_members_with_payments(doi_bong_id, selected_month_date)
-        previous_balance = DoiBongModel.get_previous_balance(doi_bong_id, selected_month_date)
-        finance = FinanceService.tinh_toan_quy_doi_bong(month_config, members, previous_balance)
+        expenses = DoiBongModel.get_expenses(doi_bong_id, selected_month_date)
+        finance = FinanceService.tinh_toan_quy_doi_bong(month_config, members, expenses)
         available_months = DoiBongModel.get_available_months(doi_bong_id)
         if selected_month[:7] not in available_months:
             available_months.insert(0, selected_month[:7])
+        registered_vdv_ids = {member[1] for member in members if member[1]}
+        all_vdv = [vdv for vdv in VanDongVienModel.get_all() if vdv[0] not in registered_vdv_ids]
+        admins = AdminUserModel.get_all()
+        permissions = DoiBongModel.get_permissions(doi_bong_id)
+        is_owner = doi_bong[3] in (None, user.get('id'))
 
         DBLogger.log_request('GET', f'/doi-bong/{doi_bong_id}', user.get('email'))
         return render_template(
@@ -482,6 +497,11 @@ def chi_tiet_doi_bong(doi_bong_id):
             finance=finance,
             selected_month=selected_month[:7],
             available_months=available_months,
+            all_vdv=all_vdv,
+            admins=admins,
+            permissions=permissions,
+            can_edit=True,
+            is_owner=is_owner,
         )
     except Exception as e:
         DBLogger.log_error(f"Error loading team detail: {str(e)}", user.get('email'), f'/doi-bong/{doi_bong_id}', context=traceback.format_exc())
@@ -494,6 +514,8 @@ def cap_nhat_quy_doi_bong(doi_bong_id):
     user = session.get('user', {})
     selected_month = request.form.get('thang') or _current_month()
     try:
+        if not _get_team_for_admin_or_403(doi_bong_id, user):
+            return "Không có quyền cập nhật đội bóng này", 403
         form_data, errors = normalize_team_month_form(request.form)
         if not errors:
             DoiBongModel.upsert_month_config(
@@ -501,8 +523,7 @@ def cap_nhat_quy_doi_bong(doi_bong_id):
                 selected_month,
                 form_data['muc_phi_thang'],
                 form_data['chi_phi_san_bai'],
-                form_data['chi_phi_nuoc_noi'],
-                form_data['chi_phi_khac'],
+                form_data['tien_san_con_lai_thang_truoc'],
                 form_data['ghi_chu'],
             )
             DBLogger.log_success(f"Team month fund updated: {doi_bong_id} {selected_month}", user.get('email'), f'/doi-bong/{doi_bong_id}/cap-nhat-quy')
@@ -518,16 +539,17 @@ def them_thanh_vien_doi_bong(doi_bong_id):
     user = session.get('user', {})
     selected_month = request.form.get('thang') or _current_month()
     try:
+        if not _get_team_for_admin_or_403(doi_bong_id, user):
+            return "Không có quyền cập nhật đội bóng này", 403
         form_data, errors = normalize_team_member_form(request.form)
         if not errors:
             DoiBongModel.add_member(
                 doi_bong_id,
-                form_data['ten_thanh_vien'],
-                form_data['trinh_do'],
+                form_data['van_dong_vien_id'],
                 form_data['loai_thanh_vien'],
                 form_data['ghi_chu'],
             )
-            DBLogger.log_success(f"Team member added: {form_data['ten_thanh_vien']}", user.get('email'), f'/doi-bong/{doi_bong_id}/thanh-vien/them')
+            DBLogger.log_success(f"Team member added: {form_data['van_dong_vien_id']}", user.get('email'), f'/doi-bong/{doi_bong_id}/thanh-vien/them')
         return redirect(f'/doi-bong/{doi_bong_id}?thang={selected_month}')
     except Exception as e:
         DBLogger.log_error(f"Error adding team member: {str(e)}", user.get('email'), f'/doi-bong/{doi_bong_id}/thanh-vien/them', context=traceback.format_exc())
@@ -540,13 +562,13 @@ def sua_thanh_vien_doi_bong(doi_bong_id, thanh_vien_id):
     user = session.get('user', {})
     selected_month = request.form.get('thang') or _current_month()
     try:
+        if not _get_team_for_admin_or_403(doi_bong_id, user):
+            return "Không có quyền cập nhật đội bóng này", 403
         form_data, errors = normalize_team_member_form(request.form)
         if not errors:
             DoiBongModel.update_member(
                 doi_bong_id,
                 thanh_vien_id,
-                form_data['ten_thanh_vien'],
-                form_data['trinh_do'],
                 form_data['loai_thanh_vien'],
                 form_data['ghi_chu'],
             )
@@ -563,11 +585,86 @@ def xoa_thanh_vien_doi_bong(doi_bong_id, thanh_vien_id):
     user = session.get('user', {})
     selected_month = request.args.get('thang') or _current_month()
     try:
+        if not _get_team_for_admin_or_403(doi_bong_id, user):
+            return "Không có quyền cập nhật đội bóng này", 403
         DoiBongModel.delete_member(doi_bong_id, thanh_vien_id)
         DBLogger.log_success(f"Team member deleted: {thanh_vien_id}", user.get('email'), f'/doi-bong/{doi_bong_id}/thanh-vien/{thanh_vien_id}/xoa')
         return redirect(f'/doi-bong/{doi_bong_id}?thang={selected_month}')
     except Exception as e:
         DBLogger.log_error(f"Error deleting team member: {str(e)}", user.get('email'), f'/doi-bong/{doi_bong_id}/thanh-vien/{thanh_vien_id}/xoa', context=traceback.format_exc())
+        return f"Error: {str(e)}", 500
+
+
+@app.route('/doi-bong/<int:doi_bong_id>/khoan-chi/them', methods=['POST'])
+@admin_required
+def them_khoan_chi_doi_bong(doi_bong_id):
+    user = session.get('user', {})
+    selected_month = request.form.get('thang') or _current_month()
+    try:
+        if not _get_team_for_admin_or_403(doi_bong_id, user):
+            return "Không có quyền cập nhật đội bóng này", 403
+        form_data, errors = normalize_team_expense_form(request.form)
+        if not errors:
+            DoiBongModel.add_expense(
+                doi_bong_id,
+                selected_month,
+                form_data['ngay_chi'],
+                form_data['noi_dung'],
+                form_data['so_tien'],
+                form_data['ghi_chu'],
+            )
+            DBLogger.log_success(f"Team expense added: {doi_bong_id}", user.get('email'), f'/doi-bong/{doi_bong_id}/khoan-chi/them')
+        return redirect(f'/doi-bong/{doi_bong_id}?thang={selected_month}')
+    except Exception as e:
+        DBLogger.log_error(f"Error adding team expense: {str(e)}", user.get('email'), f'/doi-bong/{doi_bong_id}/khoan-chi/them', context=traceback.format_exc())
+        return f"Error: {str(e)}", 500
+
+
+@app.route('/doi-bong/<int:doi_bong_id>/khoan-chi/<int:expense_id>/xoa')
+@admin_required
+def xoa_khoan_chi_doi_bong(doi_bong_id, expense_id):
+    user = session.get('user', {})
+    selected_month = request.args.get('thang') or _current_month()
+    try:
+        if not _get_team_for_admin_or_403(doi_bong_id, user):
+            return "Không có quyền cập nhật đội bóng này", 403
+        DoiBongModel.delete_expense(doi_bong_id, expense_id)
+        DBLogger.log_success(f"Team expense deleted: {expense_id}", user.get('email'), f'/doi-bong/{doi_bong_id}/khoan-chi/{expense_id}/xoa')
+        return redirect(f'/doi-bong/{doi_bong_id}?thang={selected_month}')
+    except Exception as e:
+        DBLogger.log_error(f"Error deleting team expense: {str(e)}", user.get('email'), f'/doi-bong/{doi_bong_id}/khoan-chi/{expense_id}/xoa', context=traceback.format_exc())
+        return f"Error: {str(e)}", 500
+
+
+@app.route('/doi-bong/<int:doi_bong_id>/phan-quyen/them', methods=['POST'])
+@admin_required
+def them_quyen_doi_bong(doi_bong_id):
+    user = session.get('user', {})
+    try:
+        doi_bong = DoiBongModel.get_by_id(doi_bong_id, user.get('id'))
+        if not doi_bong or doi_bong[3] not in (None, user.get('id')):
+            return "Không có quyền phân quyền đội bóng này", 403
+        admin_id = request.form.get('admin_id')
+        if admin_id:
+            DoiBongModel.add_permission(doi_bong_id, admin_id)
+        return redirect(f'/doi-bong/{doi_bong_id}')
+    except Exception as e:
+        DBLogger.log_error(f"Error adding team permission: {str(e)}", user.get('email'), f'/doi-bong/{doi_bong_id}/phan-quyen/them', context=traceback.format_exc())
+        return f"Error: {str(e)}", 500
+
+
+@app.route('/doi-bong/<int:doi_bong_id>/phan-quyen/<int:permission_id>/xoa')
+@admin_required
+def xoa_quyen_doi_bong(doi_bong_id, permission_id):
+    user = session.get('user', {})
+    try:
+        doi_bong = DoiBongModel.get_by_id(doi_bong_id, user.get('id'))
+        if not doi_bong or doi_bong[3] not in (None, user.get('id')):
+            return "Không có quyền phân quyền đội bóng này", 403
+        DoiBongModel.remove_permission(doi_bong_id, permission_id)
+        return redirect(f'/doi-bong/{doi_bong_id}')
+    except Exception as e:
+        DBLogger.log_error(f"Error removing team permission: {str(e)}", user.get('email'), f'/doi-bong/{doi_bong_id}/phan-quyen/{permission_id}/xoa', context=traceback.format_exc())
         return f"Error: {str(e)}", 500
 
 
@@ -577,6 +674,8 @@ def cap_nhat_dong_phi_doi_bong(doi_bong_id):
     user = session.get('user', {})
     selected_month = request.form.get('thang') or _current_month()
     try:
+        if not _get_team_for_admin_or_403(doi_bong_id, user):
+            return "Không có quyền cập nhật đội bóng này", 403
         members = DoiBongModel.get_members_with_payments(doi_bong_id, selected_month)
         updates = []
         for member in members:
@@ -756,6 +855,8 @@ def chi_tiet_giai_admin(giai_id):
         canh_bao = None
         if request.args.get('error') == 'full':
             canh_bao = "⚠️ Giải đã đủ số người dự kiến, không thể thêm VĐV nữa. Hãy tăng 'Số người dự kiến' trong phần Sửa giải nếu muốn nhận thêm."
+        elif request.args.get('error') == 'prize_over':
+            canh_bao = "Tổng tiền thưởng nhập tay không được vượt quá quỹ thưởng thực tế."
 
         DBLogger.log_request('GET', f'/giai-dau/{giai_id}/admin', user.get('email'))
         return render_template('chi_tiet_giai_admin.html', giai=giai_detail, registrations=registrations, canh_bao=canh_bao, enumerate=enumerate, base_url=BASE_URL)
@@ -899,6 +1000,37 @@ def cap_nhat_tien_hang_loat(giai_id):
     except Exception as e:
         DBLogger.log_error(f"Batch payment error: {str(e)}", user.get('email'), f'/giai-dau/{giai_id}/cap-nhat-tien-hang-loat', context=traceback.format_exc())
         return f"❌ Error: {str(e)}", 500
+@app.route('/giai-dau/<int:giai_id>/cap-nhat-giai-thuong', methods=['POST'])
+@admin_required
+def cap_nhat_giai_thuong(giai_id):
+    user = session.get('user', {})
+    try:
+        giai_raw = TournamentModel.get_details(giai_id)
+        if not giai_raw:
+            return "Không tìm thấy", 404
+        registrations = DangKyGiaiModel.get_by_tournament(giai_id)
+        giai_detail = prepare_tournament_detail(giai_raw, registrations)
+        quy_toi_da = float(giai_detail.get('quy_giai_thuong_thuc_te') or 0)
+
+        prizes = []
+        for field in ('tien_giai_1', 'tien_giai_2', 'tien_giai_3'):
+            raw_value = (request.form.get(field) or '').strip()
+            if raw_value == '':
+                prizes.append(None)
+            else:
+                prizes.append(max(0, float(raw_value)))
+
+        if sum(value or 0 for value in prizes) > quy_toi_da:
+            return redirect(f'/giai-dau/{giai_id}/admin?error=prize_over')
+
+        TournamentModel.update_prizes(giai_id, prizes[0], prizes[1], prizes[2])
+        DBLogger.log_success(f"Tournament prizes updated: {giai_id}", user.get('email'), f'/giai-dau/{giai_id}/cap-nhat-giai-thuong')
+        return redirect(f'/giai-dau/{giai_id}/admin')
+    except Exception as e:
+        DBLogger.log_error(f"Prize update error: {str(e)}", user.get('email'), f'/giai-dau/{giai_id}/cap-nhat-giai-thuong', context=traceback.format_exc())
+        return f"Error: {str(e)}", 500
+
+
 @app.route('/tran-dau/<int:tran_id>/cap-nhat-ty-so', methods=['POST'])
 @admin_required
 def cap_nhat_ty_so(tran_id):
@@ -1065,10 +1197,50 @@ def vdv_dashboard():
                 DBLogger.log_error(f"Error loading tournament for VĐV: {str(e)}", user.get('email'), '/vdv-dashboard', context=traceback.format_exc())
                 continue
         
-        return render_template('vdv_dashboard.html', vdv_giai=vdv_giai)
+        vdv_doi_bong = DoiBongModel.get_by_vdv(vdv_id)
+        return render_template('vdv_dashboard.html', vdv_giai=vdv_giai, vdv_doi_bong=vdv_doi_bong)
     except Exception as e:
         DBLogger.log_error(f"Error loading VĐV dashboard: {str(e)}", user.get('email'), '/vdv-dashboard', context=traceback.format_exc())
         return f"❌ Error: {str(e)}", 500
+
+
+@app.route('/doi-bong/<int:doi_bong_id>/vdv')
+@login_required
+def chi_tiet_doi_bong_vdv(doi_bong_id):
+    user = session.get('user', {})
+    if user.get('role') != 'vdv':
+        return redirect(url_for('login'))
+    try:
+        doi_bong = DoiBongModel.get_by_id_for_vdv(doi_bong_id, user['id'])
+        if not doi_bong:
+            return "Không có quyền xem đội bóng này", 403
+
+        selected_month = request.args.get('thang') or _current_month()
+        selected_month_date = DoiBongModel.normalize_month(selected_month)
+        month_config = DoiBongModel.get_month_config(doi_bong_id, selected_month_date)
+        members = DoiBongModel.get_members_with_payments(doi_bong_id, selected_month_date)
+        expenses = DoiBongModel.get_expenses(doi_bong_id, selected_month_date)
+        finance = FinanceService.tinh_toan_quy_doi_bong(month_config, members, expenses)
+        available_months = DoiBongModel.get_available_months(doi_bong_id)
+        if selected_month[:7] not in available_months:
+            available_months.insert(0, selected_month[:7])
+
+        DBLogger.log_request('GET', f'/doi-bong/{doi_bong_id}/vdv', user.get('email'))
+        return render_template(
+            'chi_tiet_doi_bong.html',
+            doi_bong=doi_bong,
+            finance=finance,
+            selected_month=selected_month[:7],
+            available_months=available_months,
+            all_vdv=[],
+            admins=[],
+            permissions=[],
+            can_edit=False,
+            is_owner=False,
+        )
+    except Exception as e:
+        DBLogger.log_error(f"Error loading team for VĐV: {str(e)}", user.get('email'), f'/doi-bong/{doi_bong_id}/vdv', context=traceback.format_exc())
+        return f"Error: {str(e)}", 500
 
 @app.route('/giai-dau/<int:giai_id>/vdv')
 @login_required

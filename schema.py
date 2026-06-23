@@ -43,6 +43,11 @@ ALTER TABLE giai_dau
 ADD COLUMN IF NOT EXISTS diem_cham INTEGER DEFAULT 11,
 ADD COLUMN IF NOT EXISTS diem_toi_da INTEGER DEFAULT 15;
 
+ALTER TABLE giai_dau
+ADD COLUMN IF NOT EXISTS tien_giai_1 NUMERIC(12, 2),
+ADD COLUMN IF NOT EXISTS tien_giai_2 NUMERIC(12, 2),
+ADD COLUMN IF NOT EXISTS tien_giai_3 NUMERIC(12, 2);
+
 ALTER TABLE tran_dau
 ADD COLUMN IF NOT EXISTS thu_tu_danh INTEGER DEFAULT 2;
 
@@ -83,13 +88,18 @@ CREATE TABLE IF NOT EXISTS doi_bong (
     id SERIAL PRIMARY KEY,
     ten_doi VARCHAR(255) NOT NULL,
     mo_ta TEXT,
+    owner_admin_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+ALTER TABLE doi_bong
+ADD COLUMN IF NOT EXISTS owner_admin_id INTEGER REFERENCES users(id) ON DELETE SET NULL;
+
 CREATE TABLE IF NOT EXISTS doi_bong_thanh_vien (
     id SERIAL PRIMARY KEY,
     doi_bong_id INTEGER NOT NULL REFERENCES doi_bong(id) ON DELETE CASCADE,
+    van_dong_vien_id INTEGER REFERENCES van_dong_vien(id) ON DELETE CASCADE,
     ten_thanh_vien VARCHAR(255) NOT NULL,
     trinh_do VARCHAR(10) DEFAULT 'C',
     loai_thanh_vien VARCHAR(20) DEFAULT 'co_dinh',
@@ -99,6 +109,9 @@ CREATE TABLE IF NOT EXISTS doi_bong_thanh_vien (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+ALTER TABLE doi_bong_thanh_vien
+ADD COLUMN IF NOT EXISTS van_dong_vien_id INTEGER REFERENCES van_dong_vien(id) ON DELETE CASCADE;
+
 CREATE TABLE IF NOT EXISTS doi_bong_quy_thang (
     id SERIAL PRIMARY KEY,
     doi_bong_id INTEGER NOT NULL REFERENCES doi_bong(id) ON DELETE CASCADE,
@@ -107,10 +120,34 @@ CREATE TABLE IF NOT EXISTS doi_bong_quy_thang (
     chi_phi_san_bai NUMERIC(12, 2) DEFAULT 0,
     chi_phi_nuoc_noi NUMERIC(12, 2) DEFAULT 0,
     chi_phi_khac NUMERIC(12, 2) DEFAULT 0,
+    tien_san_con_lai_thang_truoc NUMERIC(12, 2) DEFAULT 0,
     ghi_chu TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE (doi_bong_id, thang)
+);
+
+ALTER TABLE doi_bong_quy_thang
+ADD COLUMN IF NOT EXISTS tien_san_con_lai_thang_truoc NUMERIC(12, 2) DEFAULT 0;
+
+CREATE TABLE IF NOT EXISTS doi_bong_khoan_chi (
+    id SERIAL PRIMARY KEY,
+    doi_bong_id INTEGER NOT NULL REFERENCES doi_bong(id) ON DELETE CASCADE,
+    thang DATE NOT NULL,
+    ngay_chi DATE NOT NULL,
+    noi_dung VARCHAR(255) NOT NULL,
+    so_tien NUMERIC(12, 2) DEFAULT 0,
+    ghi_chu TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS doi_bong_admin_quyen (
+    id SERIAL PRIMARY KEY,
+    doi_bong_id INTEGER NOT NULL REFERENCES doi_bong(id) ON DELETE CASCADE,
+    admin_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (doi_bong_id, admin_id)
 );
 
 CREATE TABLE IF NOT EXISTS doi_bong_dong_phi (
@@ -131,11 +168,24 @@ ON doi_bong (ten_doi);
 CREATE INDEX IF NOT EXISTS idx_doi_bong_thanh_vien_doi
 ON doi_bong_thanh_vien (doi_bong_id, active, ten_thanh_vien);
 
+CREATE UNIQUE INDEX IF NOT EXISTS idx_doi_bong_thanh_vien_doi_vdv
+ON doi_bong_thanh_vien (doi_bong_id, van_dong_vien_id)
+WHERE active = TRUE AND van_dong_vien_id IS NOT NULL;
+
 CREATE INDEX IF NOT EXISTS idx_doi_bong_quy_thang
 ON doi_bong_quy_thang (doi_bong_id, thang);
 
 CREATE INDEX IF NOT EXISTS idx_doi_bong_dong_phi_thang
 ON doi_bong_dong_phi (thang, thanh_vien_id);
+
+CREATE INDEX IF NOT EXISTS idx_doi_bong_owner
+ON doi_bong (owner_admin_id);
+
+CREATE INDEX IF NOT EXISTS idx_doi_bong_khoan_chi_thang
+ON doi_bong_khoan_chi (doi_bong_id, thang, ngay_chi);
+
+CREATE INDEX IF NOT EXISTS idx_doi_bong_admin_quyen_admin
+ON doi_bong_admin_quyen (admin_id, doi_bong_id);
 """
 
 

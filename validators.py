@@ -72,9 +72,9 @@ def normalize_tournament_form(form):
         numeric_fields["chi_phi_nuoc_noi"] = _parse_money_field(form.get("chi_phi_nuoc_noi"))
         numeric_fields["chi_phi_giai_thuong"] = _parse_money_field(form.get("chi_phi_giai_thuong"))
         numeric_fields["chi_phi_khac"] = _parse_money_field(form.get("chi_phi_khac"))
-        numeric_fields["ty_le_giai_1"] = _parse_int_field(form.get("ty_le_giai_1"), 5, minimum=0)
-        numeric_fields["ty_le_giai_2"] = _parse_int_field(form.get("ty_le_giai_2"), 3, minimum=0)
-        numeric_fields["ty_le_giai_3"] = _parse_int_field(form.get("ty_le_giai_3"), 2, minimum=0)
+        numeric_fields["ty_le_giai_1"] = _parse_int_field(form.get("ty_le_giai_1"), 0, minimum=0)
+        numeric_fields["ty_le_giai_2"] = _parse_int_field(form.get("ty_le_giai_2"), 0, minimum=0)
+        numeric_fields["ty_le_giai_3"] = _parse_int_field(form.get("ty_le_giai_3"), 0, minimum=0)
     except ValueError:
         errors.append("Các trường số chỉ được nhập số hợp lệ.")
         numeric_fields = {
@@ -86,9 +86,9 @@ def normalize_tournament_form(form):
             "chi_phi_nuoc_noi": 0,
             "chi_phi_giai_thuong": 0,
             "chi_phi_khac": 0,
-            "ty_le_giai_1": 5,
-            "ty_le_giai_2": 3,
-            "ty_le_giai_3": 2,
+            "ty_le_giai_1": 0,
+            "ty_le_giai_2": 0,
+            "ty_le_giai_3": 0,
         }
 
     if numeric_fields["diem_toi_da"] < numeric_fields["diem_cham"]:
@@ -117,15 +117,18 @@ def normalize_team_form(form):
 
 
 def normalize_team_member_form(form):
-    ten_thanh_vien = (form.get("ten_thanh_vien") or "").strip()
+    van_dong_vien_id = (form.get("van_dong_vien_id") or "").strip()
     trinh_do = (form.get("trinh_do") or "C").strip().upper()
     loai_thanh_vien = (form.get("loai_thanh_vien") or "co_dinh").strip()
     ghi_chu = (form.get("ghi_chu") or "").strip()
 
     errors = []
-    if not ten_thanh_vien:
-        errors.append("Tên thành viên không được để trống.")
-    if trinh_do not in VALID_TRINH_DO:
+    try:
+        van_dong_vien_id = int(van_dong_vien_id)
+    except (TypeError, ValueError):
+        van_dong_vien_id = None
+        errors.append("Vui lòng chọn vận động viên.")
+    if trinh_do and trinh_do not in VALID_TRINH_DO:
         errors.append("Trình độ chỉ được chọn A, B, C hoặc D.")
         trinh_do = "C"
     if loai_thanh_vien not in VALID_LOAI_THANH_VIEN:
@@ -133,7 +136,7 @@ def normalize_team_member_form(form):
         loai_thanh_vien = "co_dinh"
 
     return {
-        "ten_thanh_vien": ten_thanh_vien,
+        "van_dong_vien_id": van_dong_vien_id,
         "trinh_do": trinh_do,
         "loai_thanh_vien": loai_thanh_vien,
         "ghi_chu": ghi_chu,
@@ -146,8 +149,7 @@ def normalize_team_month_form(form):
         data = {
             "muc_phi_thang": _parse_money_field(form.get("muc_phi_thang")),
             "chi_phi_san_bai": _parse_money_field(form.get("chi_phi_san_bai")),
-            "chi_phi_nuoc_noi": _parse_money_field(form.get("chi_phi_nuoc_noi")),
-            "chi_phi_khac": _parse_money_field(form.get("chi_phi_khac")),
+            "tien_san_con_lai_thang_truoc": _parse_money_field(form.get("tien_san_con_lai_thang_truoc")),
             "ghi_chu": (form.get("ghi_chu") or "").strip(),
         }
     except ValueError:
@@ -155,8 +157,31 @@ def normalize_team_month_form(form):
         data = {
             "muc_phi_thang": 0,
             "chi_phi_san_bai": 0,
-            "chi_phi_nuoc_noi": 0,
-            "chi_phi_khac": 0,
+            "tien_san_con_lai_thang_truoc": 0,
             "ghi_chu": (form.get("ghi_chu") or "").strip(),
         }
     return data, errors
+
+
+def normalize_team_expense_form(form):
+    errors = []
+    ngay_chi = (form.get("ngay_chi") or "").strip()
+    noi_dung = (form.get("noi_dung") or "").strip()
+    ghi_chu = (form.get("ghi_chu") or "").strip()
+
+    if not ngay_chi:
+        errors.append("Ngày chi không được để trống.")
+    if not noi_dung:
+        errors.append("Nội dung khoản chi không được để trống.")
+    try:
+        so_tien = _parse_money_field(form.get("so_tien"))
+    except ValueError:
+        so_tien = 0
+        errors.append("Số tiền chi chỉ được nhập số hợp lệ.")
+
+    return {
+        "ngay_chi": ngay_chi,
+        "noi_dung": noi_dung,
+        "so_tien": so_tien,
+        "ghi_chu": ghi_chu,
+    }, errors

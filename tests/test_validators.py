@@ -1,6 +1,7 @@
 import unittest
 
 from validators import (
+    normalize_team_expense_form,
     normalize_team_form,
     normalize_team_member_form,
     normalize_team_month_form,
@@ -64,25 +65,25 @@ class NormalizeTournamentFormTest(unittest.TestCase):
         self.assertIn("Tên giải không được để trống.", errors)
         self.assertIn("Các trường số chỉ được nhập số hợp lệ.", errors)
 
-    def test_allows_zero_prize_ratio(self):
+    def test_blank_prize_ratio_defaults_to_zero(self):
         data, errors = normalize_tournament_form({
             "ten_giai_dau": "Giai 1 va 2",
             "ty_le_giai_1": "7",
-            "ty_le_giai_2": "3",
+            "ty_le_giai_2": "",
             "ty_le_giai_3": "0",
         })
 
         self.assertEqual(errors, [])
         self.assertEqual(data["ty_le_giai_1"], 7)
-        self.assertEqual(data["ty_le_giai_2"], 3)
+        self.assertEqual(data["ty_le_giai_2"], 0)
         self.assertEqual(data["ty_le_giai_3"], 0)
+
 
 class NormalizeTeamFormTest(unittest.TestCase):
     def test_normalizes_team_and_member_forms(self):
         team, team_errors = normalize_team_form({"ten_doi": "  Team A  ", "mo_ta": "  Note  "})
         member, member_errors = normalize_team_member_form({
-            "ten_thanh_vien": "  Player A ",
-            "trinh_do": "b",
+            "van_dong_vien_id": "12",
             "loai_thanh_vien": "vang_lai",
             "ghi_chu": "  ok ",
         })
@@ -90,20 +91,29 @@ class NormalizeTeamFormTest(unittest.TestCase):
         self.assertEqual(team_errors, [])
         self.assertEqual(team["ten_doi"], "Team A")
         self.assertEqual(member_errors, [])
-        self.assertEqual(member["trinh_do"], "B")
+        self.assertEqual(member["van_dong_vien_id"], 12)
         self.assertEqual(member["loai_thanh_vien"], "vang_lai")
 
     def test_normalizes_team_month_money_fields(self):
         data, errors = normalize_team_month_form({
             "muc_phi_thang": "100000",
             "chi_phi_san_bai": "50000",
-            "chi_phi_nuoc_noi": "",
-            "chi_phi_khac": "25000",
+            "tien_san_con_lai_thang_truoc": "25000",
         })
 
         self.assertEqual(errors, [])
         self.assertEqual(data["muc_phi_thang"], 100000)
-        self.assertEqual(data["chi_phi_nuoc_noi"], 0)
+        self.assertEqual(data["tien_san_con_lai_thang_truoc"], 25000)
+
+    def test_normalizes_team_expense(self):
+        data, errors = normalize_team_expense_form({
+            "ngay_chi": "2026-06-23",
+            "noi_dung": "Uong nuoc",
+            "so_tien": "100000",
+        })
+
+        self.assertEqual(errors, [])
+        self.assertEqual(data["so_tien"], 100000)
 
 
 if __name__ == "__main__":
