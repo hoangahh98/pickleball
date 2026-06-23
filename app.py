@@ -1199,6 +1199,35 @@ def cap_nhat_ty_so(tran_id):
             return jsonify({'success': False, 'error': str(e)}), 500
         return f"❌ Error: {str(e)}", 500
 
+@app.route('/giai-dau/<int:giai_id>/live-scores')
+@admin_required
+def live_scores_giai_dau(giai_id):
+    user = session.get('user', {})
+    try:
+        if not _get_tournament_for_admin_or_403(giai_id, user):
+            return jsonify({'success': False, 'error': 'Khong co quyen xem giai dau nay'}), 403
+
+        matches = MatchModel.get_all_by_tournament(giai_id)
+        return jsonify({
+            'success': True,
+            'giai_id': giai_id,
+            'matches': [
+                {
+                    'tran_id': match[0],
+                    'diem_a': match[3],
+                    'diem_b': match[4],
+                    'trang_thai': match[5],
+                    'thu_tu_danh': match[8] if len(match) > 8 else 2,
+                    'doi_dang_giao': match[9] if len(match) > 9 else 'A',
+                }
+                for match in matches
+            ]
+        })
+    except Exception as e:
+        DBLogger.log_error(f"Error loading live scores: {str(e)}", user.get('email'), f'/giai-dau/{giai_id}/live-scores', context=traceback.format_exc())
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 # ============ AUTH ROUTES ============
 
 @app.route('/login', methods=['GET', 'POST'])

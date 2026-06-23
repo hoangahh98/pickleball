@@ -747,6 +747,10 @@ let activeMatchCard = null;
 let saveScoreTimer = null;
 let previousScoreState = { a: 0, b: 0, order: '2', servingTeam: 'A' };
 let vietnameseVoice = null;
+let liveScorePollBusy = false;
+let isSavingScore = false;
+const LIVE_SCORE_URL = '/giai-dau/{{ giai.id }}/live-scores';
+const LIVE_SCORE_POLL_MS = 2000;
 
 function normalizeScoreValue(value) {
     const trimmed = String(value ?? '').trim();
@@ -818,6 +822,48 @@ function formatLiveScore(diemA, diemB, order) {
 function setSaveStatus(text, className = 'text-muted') {
     scoreSaveStatus.className = `text-center small mt-3 ${className}`;
     scoreSaveStatus.textContent = text;
+}
+
+function applyMatchUpdate(card, match, options = {}) {
+    if (!card || !match) return;
+
+    const matchId = String(match.tran_id ?? match.id ?? card.dataset.matchId);
+    const scoreBadge = document.querySelector(`[data-match-score="${matchId}"]`);
+    const statusBadge = document.querySelector(`[data-match-status="${matchId}"]`);
+    const diemA = match.diem_a ?? '';
+    const diemB = match.diem_b ?? '';
+    const thuTuDanh = String(match.thu_tu_danh || '2');
+    const doiDangGiao = match.doi_dang_giao || 'A';
+    const daXong = match.trang_thai === 'Đã xong';
+
+    card.dataset.scoreA = diemA;
+    card.dataset.scoreB = diemB;
+    card.dataset.order = thuTuDanh;
+    card.dataset.servingTeam = doiDangGiao;
+    card.classList.toggle('da-xong', daXong);
+
+    if (scoreBadge) {
+        scoreBadge.textContent = formatLiveScore(diemA, diemB, thuTuDanh);
+        scoreBadge.className = `badge ${daXong ? 'bg-success' : 'bg-primary'} px-2 py-1 score-pill`;
+    }
+    if (statusBadge) {
+        statusBadge.textContent = daXong ? 'Đã xong' : 'Đang đánh';
+        statusBadge.className = `badge ${daXong ? 'bg-success' : 'bg-secondary'} match-status`;
+    }
+
+    if (options.updateModal && activeMatchCard === card) {
+        scoreInputA.value = diemA;
+        scoreInputB.value = diemB;
+        (thuTuDanh === '1' ? scoreOrder1 : scoreOrder2).checked = true;
+        (doiDangGiao === 'B' ? servingTeamB : servingTeamA).checked = true;
+        previousScoreState = {
+            a: normalizeScoreValue(diemA) || 0,
+            b: normalizeScoreValue(diemB) || 0,
+            order: thuTuDanh,
+            servingTeam: doiDangGiao
+        };
+        updateServingHighlight();
+    }
 }
 
 function openScoreModal(card) {
@@ -919,15 +965,15 @@ function loadVietnameseVoice() {
 
 async function saveActiveScore() {
     if (!activeMatchCard) return;
+    saveScoreTimer = null;
 
     const diemA = normalizeScoreValue(scoreInputA.value);
     const diemB = normalizeScoreValue(scoreInputB.value);
     const thuTuDanh = document.querySelector('input[name="scoreOrder"]:checked')?.value || '2';
     const doiDangGiao = document.querySelector('input[name="servingTeam"]:checked')?.value || 'A';
-    const scoreBadge = document.querySelector(`[data-match-score="${activeMatchCard.dataset.matchId}"]`);
-    const statusBadge = document.querySelector(`[data-match-status="${activeMatchCard.dataset.matchId}"]`);
 
     activeMatchCard.classList.add('saving');
+    isSavingScore = true;
     setSaveStatus('Đang lưu...', 'text-primary');
 
     try {
@@ -949,32 +995,19 @@ async function saveActiveScore() {
             throw new Error(result.error || 'Không lưu được điểm');
         }
 
-        activeMatchCard.dataset.scoreA = result.diem_a ?? '';
-        activeMatchCard.dataset.scoreB = result.diem_b ?? '';
-        activeMatchCard.dataset.order = result.thu_tu_danh;
-        activeMatchCard.dataset.servingTeam = result.doi_dang_giao || doiDangGiao;
+        applyMatchUpdate(activeMatchCard, result, { updateModal: true });
         previousScoreState = {
             a: normalizeScoreValue(activeMatchCard.dataset.scoreA) || 0,
             b: normalizeScoreValue(activeMatchCard.dataset.scoreB) || 0,
             order: String(result.thu_tu_danh || '2'),
             servingTeam: activeMatchCard.dataset.servingTeam
         };
-        updateServingHighlight();
-        activeMatchCard.classList.toggle('da-xong', result.trang_thai === 'Đã xong');
-
-        if (scoreBadge) {
-            scoreBadge.textContent = formatLiveScore(activeMatchCard.dataset.scoreA, activeMatchCard.dataset.scoreB, activeMatchCard.dataset.order);
-            scoreBadge.className = `badge ${result.trang_thai === 'Đã xong' ? 'bg-success' : 'bg-primary'} px-2 py-1 score-pill`;
-        }
-        if (statusBadge) {
-            statusBadge.textContent = result.trang_thai === 'Đã xong' ? 'Đã xong' : 'Đang đánh';
-            statusBadge.className = `badge ${result.trang_thai === 'Đã xong' ? 'bg-success' : 'bg-secondary'} match-status`;
-        }
         setSaveStatus('Đã tự lưu', 'text-success');
     } catch (error) {
         setSaveStatus(error.message, 'text-danger');
     } finally {
         activeMatchCard.classList.remove('saving');
+        isSavingScore = false;
     }
 }
 
@@ -1030,6 +1063,47 @@ document.querySelectorAll('[data-score-target]').forEach((btn) => {
         stepScore(btn.dataset.scoreTarget, Number.parseInt(btn.dataset.scoreDelta, 10) || 0);
     });
 });
+
+async function pollLiveScores() {
+    if (liveScorePollBusy || document.hidden) return;
+    liveScorePollBusy = true;
+    try {
+        const response = await fetch(LIVE_SCORE_URL, {
+            headers: { 'X-Requested-With': 'fetch' },
+            cache: 'no-store'
+        });
+        const result = await response.json();
+        if (!response.ok || !result.success || !Array.isArray(result.matches)) {
+            return;
+        }
+
+        result.matches.forEach((match) => {
+            const card = document.querySelector(`.tran-card[data-match-id="${match.tran_id}"]`);
+            if (!card) return;
+
+            const isActiveCard = activeMatchCard === card;
+            const hasPendingLocalSave = isActiveCard && (isSavingScore || saveScoreTimer);
+            if (hasPendingLocalSave) {
+                return;
+            }
+            applyMatchUpdate(card, match, {
+                updateModal: isActiveCard && scoreModalEl.classList.contains('show')
+            });
+        });
+    } catch (error) {
+        // Keep polling quiet; the next tick will retry.
+    } finally {
+        liveScorePollBusy = false;
+    }
+}
+
+window.setInterval(pollLiveScores, LIVE_SCORE_POLL_MS);
+document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) {
+        pollLiveScores();
+    }
+});
+pollLiveScores();
 
 if (enableAudioBtn) {
     enableAudioBtn.addEventListener('click', () => {
