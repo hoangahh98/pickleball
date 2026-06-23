@@ -202,9 +202,11 @@ def quan_ly_giai_dau():
                        COUNT(dkg.id) as so_luong_nguoi
                 FROM giai_dau g
                 LEFT JOIN dang_ky_giai dkg ON g.id = dkg.giai_dau_id
+                LEFT JOIN giai_dau_admin_quyen q ON g.id = q.giai_dau_id AND q.admin_id = %s
+                WHERE g.owner_admin_id = %s OR q.admin_id IS NOT NULL
                 GROUP BY g.id
                 ORDER BY g.id DESC;
-            """)
+            """, (user.get('id'), user.get('id')))
             rows = cursor.fetchall()
         
         danh_sach_giai = []
@@ -394,6 +396,13 @@ def _get_team_for_admin_or_403(doi_bong_id, user):
     if not doi_bong:
         return None
     return doi_bong
+
+
+def _get_tournament_for_admin_or_403(giai_id, user):
+    giai = TournamentModel.get_details(giai_id, user.get('id'))
+    if not giai:
+        return None
+    return giai
 
 
 @app.route('/doi-bong')
@@ -728,8 +737,9 @@ def them_giai_dau():
                 INSERT INTO giai_dau
                     (ten_giai_dau, so_luong_san, dia_diem,
                      chi_phi_san_bai, chi_phi_nuoc_noi, chi_phi_giai_thuong, chi_phi_khac,
-                     ty_le_giai_1, ty_le_giai_2, ty_le_giai_3, so_nguoi_du_kien, thoi_gian_bat_dau, loai_dau)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
+                     ty_le_giai_1, ty_le_giai_2, ty_le_giai_3, so_nguoi_du_kien, thoi_gian_bat_dau, loai_dau,
+                     owner_admin_id)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
             """, (
                 form_data['ten_giai_dau'],
                 form_data['so_luong_san'],
@@ -743,7 +753,8 @@ def them_giai_dau():
                 form_data['ty_le_giai_3'],
                 form_data['so_nguoi_du_kien'],
                 form_data['thoi_gian_bat_dau'],
-                loai_dau
+                loai_dau,
+                user.get('id')
             ))
         DBLogger.log_success(f"Tournament created: {form_data['ten_giai_dau']} ({loai_dau})", user.get('email'), '/them-giai-dau')
         return redirect('/giai-dau')
@@ -759,12 +770,14 @@ def sua_giai_dau(giai_id):
     try:
         if request.method == 'GET':
             TournamentModel.ensure_score_rule_columns()
-            giai_raw = TournamentModel.get_details(giai_id)
+            giai_raw = _get_tournament_for_admin_or_403(giai_id, user)
             if not giai_raw:
                 return "Không tìm thấy", 404
             return render_template('sua_giai.html', giai=giai_raw)
         
         TournamentModel.ensure_score_rule_columns()
+        if not _get_tournament_for_admin_or_403(giai_id, user):
+            return "Khong co quyen sua giai dau nay", 403
         form_data, errors = normalize_tournament_form(request.form)
         if errors:
             return render_template('sua_giai.html', giai=_giai_tuple_from_form(giai_id, form_data), errors=errors), 400
@@ -814,6 +827,9 @@ def xoa_giai_dau(giai_id):
     """Xóa giải"""
     user = session.get('user', {})
     try:
+        giai_raw = _get_tournament_for_admin_or_403(giai_id, user)
+        if not giai_raw:
+            return "Khong co quyen xoa giai dau nay", 403
         with db_cursor(commit=True) as cursor:
             cursor.execute("DELETE FROM giai_dau WHERE id = %s;", (giai_id,))
         DBLogger.log_success(f"Tournament {giai_id} deleted", user.get('email'), f'/xoa-giai-dau/{giai_id}')
@@ -828,9 +844,9 @@ def chi_tiet_giai_admin(giai_id):
     """Chi tiết giải (ADMIN) - FIXED VERSION"""
     user = session.get('user', {})
     try:
-        giai_raw = TournamentModel.get_details(giai_id)
+        giai_raw = _get_tournament_for_admin_or_403(giai_id, user)
         if not giai_raw:
-            return "Không tìm thấy", 404
+            return "Không có quyền xem giải đấu này", 403
         
         registrations = DangKyGiaiModel.get_by_tournament(giai_id)
         all_vdv = VanDongVienModel.get_all()
@@ -852,6 +868,7 @@ def chi_tiet_giai_admin(giai_id):
         giai_detail['loai_dau'] = giai_raw[15] if len(giai_raw) > 15 and giai_raw[15] else 'don'
         giai_detail['diem_cham'] = int(giai_raw[16] if len(giai_raw) > 16 and giai_raw[16] else 11)
         giai_detail['diem_toi_da'] = int(giai_raw[17] if len(giai_raw) > 17 and giai_raw[17] else 15)
+        giai_detail['owner_admin_id'] = giai_raw[21] if len(giai_raw) > 21 else None
 
         # Build vong_dict: { vong_number: [match_dict, ...] } for the template
         vong_dict = {}
@@ -875,7 +892,26 @@ def chi_tiet_giai_admin(giai_id):
             canh_bao = "Tổng tiền thưởng nhập tay không được vượt quá quỹ thưởng thực tế."
 
         DBLogger.log_request('GET', f'/giai-dau/{giai_id}/admin', user.get('email'))
-        return render_template('chi_tiet_giai_admin.html', giai=giai_detail, registrations=registrations, canh_bao=canh_bao, enumerate=enumerate, base_url=BASE_URL)
+        permissions = TournamentModel.get_permissions(giai_id)
+        permission_admin_ids = {permission[1] for permission in permissions}
+        owner_admin_id = giai_detail.get('owner_admin_id')
+        admins = [
+            admin for admin in AdminUserModel.get_all()
+            if admin[0] != owner_admin_id and admin[0] != user.get('id') and admin[0] not in permission_admin_ids
+        ]
+        is_owner = owner_admin_id in (None, user.get('id'))
+
+        return render_template(
+            'chi_tiet_giai_admin.html',
+            giai=giai_detail,
+            registrations=registrations,
+            canh_bao=canh_bao,
+            enumerate=enumerate,
+            base_url=BASE_URL,
+            admins=admins,
+            permissions=permissions,
+            is_owner=is_owner,
+        )
     except Exception as e:
         DBLogger.log_error(f"Error loading tournament: {str(e)}", user.get('email'), f'/giai-dau/{giai_id}/admin', context=traceback.format_exc())
         return f"❌ Error: {str(e)}", 500
@@ -890,7 +926,9 @@ def dang_ky_vdv(giai_id):
         if not van_dong_vien_ids and request.form.get('van_dong_vien_id'):
             van_dong_vien_ids = [request.form.get('van_dong_vien_id')]
 
-        giai_raw = TournamentModel.get_details(giai_id)
+        giai_raw = _get_tournament_for_admin_or_403(giai_id, user)
+        if not giai_raw:
+            return "Khong co quyen cap nhat giai dau nay", 403
         so_nguoi_du_kien = giai_raw[11] if giai_raw and giai_raw[11] else 0
         registrations = DangKyGiaiModel.get_by_tournament(giai_id)
 
@@ -934,6 +972,8 @@ def xoa_dang_ky(dang_ky_id):
             cursor.execute("SELECT giai_dau_id FROM dang_ky_giai WHERE id = %s;", (dang_ky_id,))
             result = cursor.fetchone()
         giai_id = result[0] if result else None
+        if not giai_id or not _get_tournament_for_admin_or_403(giai_id, user):
+            return "Khong co quyen cap nhat giai dau nay", 403
         
         DangKyGiaiModel.remove(dang_ky_id)
         DBLogger.log_success(f"Registration {dang_ky_id} removed", user.get('email'), f'/dang-ky-giai/{dang_ky_id}/xoa')
@@ -955,6 +995,8 @@ def cap_nhat_tien_dang_ky(dang_ky_id):
             cursor.execute("SELECT giai_dau_id FROM dang_ky_giai WHERE id = %s;", (dang_ky_id,))
             result = cursor.fetchone()
         giai_id = result[0] if result else None
+        if not giai_id or not _get_tournament_for_admin_or_403(giai_id, user):
+            return "Khong co quyen cap nhat giai dau nay", 403
         
         DangKyGiaiModel.update_payment(dang_ky_id, so_tien, trang_thai)
         DBLogger.log_success(f"Payment updated: {so_tien}đ", user.get('email'), f'/dang-ky-giai/{dang_ky_id}/cap-nhat-tien')
@@ -969,8 +1011,10 @@ def auto_chia_lich(giai_id):
     """Tự sinh lịch thi đấu - FIXED VERSION"""
     user = session.get('user', {})
     try:
+        giai_raw = _get_tournament_for_admin_or_403(giai_id, user)
+        if not giai_raw:
+            return "Khong co quyen cap nhat giai dau nay", 403
         registrations = DangKyGiaiModel.get_by_tournament(giai_id)
-        giai_raw = TournamentModel.get_details(giai_id)
         so_san = giai_raw[2] if giai_raw else 1
         
         loai_dau = giai_raw[15] if len(giai_raw) > 15 and giai_raw[15] else 'don'
@@ -999,6 +1043,8 @@ def cap_nhat_tien_hang_loat(giai_id):
     """Cập nhật phí đóng cho toàn bộ VĐV trong 1 lần submit"""
     user = session.get('user', {})
     try:
+        if not _get_tournament_for_admin_or_403(giai_id, user):
+            return "Khong co quyen cap nhat giai dau nay", 403
         registrations = DangKyGiaiModel.get_by_tournament(giai_id)
         updates = []
         for reg in registrations:
@@ -1021,9 +1067,9 @@ def cap_nhat_tien_hang_loat(giai_id):
 def cap_nhat_giai_thuong(giai_id):
     user = session.get('user', {})
     try:
-        giai_raw = TournamentModel.get_details(giai_id)
+        giai_raw = _get_tournament_for_admin_or_403(giai_id, user)
         if not giai_raw:
-            return "Không tìm thấy", 404
+            return "Khong co quyen cap nhat giai dau nay", 403
         registrations = DangKyGiaiModel.get_by_tournament(giai_id)
         giai_detail = prepare_tournament_detail(giai_raw, registrations)
         quy_toi_da = float(giai_detail.get('quy_giai_thuong_thuc_te') or 0)
@@ -1047,6 +1093,38 @@ def cap_nhat_giai_thuong(giai_id):
         return f"Error: {str(e)}", 500
 
 
+@app.route('/giai-dau/<int:giai_id>/phan-quyen/them', methods=['POST'])
+@admin_required
+def them_quyen_giai_dau(giai_id):
+    user = session.get('user', {})
+    try:
+        giai_raw = _get_tournament_for_admin_or_403(giai_id, user)
+        if not giai_raw or giai_raw[21] not in (None, user.get('id')):
+            return "Khong co quyen phan quyen giai dau nay", 403
+        admin_id = request.form.get('admin_id')
+        if admin_id:
+            TournamentModel.add_permission(giai_id, admin_id)
+        return redirect(f'/giai-dau/{giai_id}/admin')
+    except Exception as e:
+        DBLogger.log_error(f"Error adding tournament permission: {str(e)}", user.get('email'), f'/giai-dau/{giai_id}/phan-quyen/them', context=traceback.format_exc())
+        return f"Error: {str(e)}", 500
+
+
+@app.route('/giai-dau/<int:giai_id>/phan-quyen/<int:permission_id>/xoa')
+@admin_required
+def xoa_quyen_giai_dau(giai_id, permission_id):
+    user = session.get('user', {})
+    try:
+        giai_raw = _get_tournament_for_admin_or_403(giai_id, user)
+        if not giai_raw or giai_raw[21] not in (None, user.get('id')):
+            return "Khong co quyen phan quyen giai dau nay", 403
+        TournamentModel.remove_permission(giai_id, permission_id)
+        return redirect(f'/giai-dau/{giai_id}/admin')
+    except Exception as e:
+        DBLogger.log_error(f"Error removing tournament permission: {str(e)}", user.get('email'), f'/giai-dau/{giai_id}/phan-quyen/{permission_id}/xoa', context=traceback.format_exc())
+        return f"Error: {str(e)}", 500
+
+
 @app.route('/tran-dau/<int:tran_id>/cap-nhat-ty-so', methods=['POST'])
 @admin_required
 def cap_nhat_ty_so(tran_id):
@@ -1066,6 +1144,8 @@ def cap_nhat_ty_so(tran_id):
         with db_cursor() as cursor:
             cursor.execute("SELECT giai_dau_id FROM tran_dau WHERE id = %s;", (tran_id,))
             giai_id = cursor.fetchone()[0]
+        if not _get_tournament_for_admin_or_403(giai_id, user):
+            return "Khong co quyen cap nhat giai dau nay", 403
         
         trang_thai, diem_a, diem_b = MatchModel.update_score(tran_id, diem_a, diem_b, thu_tu_danh, doi_dang_giao)
         DBLogger.log_success(f"Match {tran_id} score updated: {diem_a}-{diem_b}-{thu_tu_danh}-{doi_dang_giao}", user.get('email'), f'/tran-dau/{tran_id}/cap-nhat-ty-so')

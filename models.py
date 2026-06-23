@@ -86,18 +86,31 @@ class TournamentModel:
         return None
 
     @staticmethod
-    def get_details(giai_id):
+    def get_details(giai_id, admin_id=None):
         """Get tournament details"""
         with db_cursor() as cursor:
-            cursor.execute("""
-                SELECT id, ten_giai_dau, so_luong_san, dia_diem,
-                       chi_phi_san_bai, chi_phi_nuoc_noi, chi_phi_giai_thuong, chi_phi_khac,
-                       ty_le_giai_1, ty_le_giai_2, ty_le_giai_3, so_nguoi_du_kien,
-                       thoi_gian_bat_dau, banner_image, qr_image,
-                       COALESCE(loai_dau, 'don'), COALESCE(diem_cham, 11), COALESCE(diem_toi_da, 15),
-                       tien_giai_1, tien_giai_2, tien_giai_3
-                FROM giai_dau WHERE id = %s;
-            """, (giai_id,))
+            if admin_id:
+                cursor.execute("""
+                    SELECT g.id, g.ten_giai_dau, g.so_luong_san, g.dia_diem,
+                           g.chi_phi_san_bai, g.chi_phi_nuoc_noi, g.chi_phi_giai_thuong, g.chi_phi_khac,
+                           g.ty_le_giai_1, g.ty_le_giai_2, g.ty_le_giai_3, g.so_nguoi_du_kien,
+                           g.thoi_gian_bat_dau, g.banner_image, g.qr_image,
+                           COALESCE(g.loai_dau, 'don'), COALESCE(g.diem_cham, 11), COALESCE(g.diem_toi_da, 15),
+                           g.tien_giai_1, g.tien_giai_2, g.tien_giai_3, g.owner_admin_id
+                    FROM giai_dau g
+                    LEFT JOIN giai_dau_admin_quyen q ON g.id = q.giai_dau_id AND q.admin_id = %s
+                    WHERE g.id = %s AND (g.owner_admin_id = %s OR q.admin_id IS NOT NULL);
+                """, (admin_id, giai_id, admin_id))
+            else:
+                cursor.execute("""
+                    SELECT id, ten_giai_dau, so_luong_san, dia_diem,
+                           chi_phi_san_bai, chi_phi_nuoc_noi, chi_phi_giai_thuong, chi_phi_khac,
+                           ty_le_giai_1, ty_le_giai_2, ty_le_giai_3, so_nguoi_du_kien,
+                           thoi_gian_bat_dau, banner_image, qr_image,
+                           COALESCE(loai_dau, 'don'), COALESCE(diem_cham, 11), COALESCE(diem_toi_da, 15),
+                           tien_giai_1, tien_giai_2, tien_giai_3, owner_admin_id
+                    FROM giai_dau WHERE id = %s;
+                """, (giai_id,))
             return cursor.fetchone()
     
     @staticmethod
@@ -126,6 +139,32 @@ class TournamentModel:
                 SET tien_giai_1=%s, tien_giai_2=%s, tien_giai_3=%s
                 WHERE id=%s;
             """, (tien_giai_1, tien_giai_2, tien_giai_3, giai_id))
+
+    @staticmethod
+    def get_permissions(giai_id):
+        with db_cursor() as cursor:
+            cursor.execute("""
+                SELECT q.id, q.admin_id, u.email
+                FROM giai_dau_admin_quyen q
+                INNER JOIN users u ON q.admin_id = u.id
+                WHERE q.giai_dau_id = %s
+                ORDER BY u.email ASC;
+            """, (giai_id,))
+            return cursor.fetchall()
+
+    @staticmethod
+    def add_permission(giai_id, admin_id):
+        with db_cursor(commit=True) as cursor:
+            cursor.execute("""
+                INSERT INTO giai_dau_admin_quyen (giai_dau_id, admin_id)
+                VALUES (%s, %s)
+                ON CONFLICT (giai_dau_id, admin_id) DO NOTHING;
+            """, (giai_id, admin_id))
+
+    @staticmethod
+    def remove_permission(giai_id, permission_id):
+        with db_cursor(commit=True) as cursor:
+            cursor.execute("DELETE FROM giai_dau_admin_quyen WHERE giai_dau_id = %s AND id = %s;", (giai_id, permission_id))
 
 class DangKyGiaiModel:
     """Đăng ký giải (Registration)"""

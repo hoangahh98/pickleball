@@ -48,6 +48,24 @@ ADD COLUMN IF NOT EXISTS tien_giai_1 NUMERIC(12, 2),
 ADD COLUMN IF NOT EXISTS tien_giai_2 NUMERIC(12, 2),
 ADD COLUMN IF NOT EXISTS tien_giai_3 NUMERIC(12, 2);
 
+ALTER TABLE giai_dau
+ADD COLUMN IF NOT EXISTS owner_admin_id INTEGER REFERENCES users(id) ON DELETE SET NULL;
+
+UPDATE giai_dau
+SET owner_admin_id = COALESCE(
+    (SELECT id FROM users WHERE lower(email) = lower('admin@pickleball') LIMIT 1),
+    (SELECT id FROM users WHERE role = 'admin' ORDER BY id ASC LIMIT 1)
+)
+WHERE owner_admin_id IS NULL;
+
+CREATE TABLE IF NOT EXISTS giai_dau_admin_quyen (
+    id SERIAL PRIMARY KEY,
+    giai_dau_id INTEGER NOT NULL REFERENCES giai_dau(id) ON DELETE CASCADE,
+    admin_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (giai_dau_id, admin_id)
+);
+
 ALTER TABLE tran_dau
 ADD COLUMN IF NOT EXISTS thu_tu_danh INTEGER DEFAULT 2;
 
@@ -62,6 +80,12 @@ ON van_dong_vien (ten_vdv);
 
 CREATE INDEX IF NOT EXISTS idx_giai_dau_id_desc
 ON giai_dau (id DESC);
+
+CREATE INDEX IF NOT EXISTS idx_giai_dau_owner
+ON giai_dau (owner_admin_id);
+
+CREATE INDEX IF NOT EXISTS idx_giai_dau_admin_quyen_admin
+ON giai_dau_admin_quyen (admin_id, giai_dau_id);
 
 CREATE INDEX IF NOT EXISTS idx_dang_ky_giai_giai
 ON dang_ky_giai (giai_dau_id);
