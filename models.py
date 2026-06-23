@@ -76,6 +76,61 @@ class AdminUserModel:
             """)
             return cursor.fetchall()
 
+    @staticmethod
+    def get_by_id(admin_id):
+        with db_cursor() as cursor:
+            cursor.execute("""
+                SELECT id, email
+                FROM users
+                WHERE id = %s AND role = 'admin';
+            """, (admin_id,))
+            return cursor.fetchone()
+
+    @staticmethod
+    def email_exists(email, exclude_id=None):
+        with db_cursor() as cursor:
+            if exclude_id:
+                cursor.execute("""
+                    SELECT 1
+                    FROM users
+                    WHERE lower(email) = lower(%s) AND id <> %s
+                    LIMIT 1;
+                """, (email, exclude_id))
+            else:
+                cursor.execute("SELECT 1 FROM users WHERE lower(email) = lower(%s) LIMIT 1;", (email,))
+            return cursor.fetchone() is not None
+
+    @staticmethod
+    def update(admin_id, email, password_hash=None):
+        with db_cursor(commit=True) as cursor:
+            if password_hash:
+                cursor.execute("""
+                    UPDATE users
+                    SET email = %s, password = %s
+                    WHERE id = %s AND role = 'admin';
+                """, (email.strip().lower(), password_hash, admin_id))
+            else:
+                cursor.execute("""
+                    UPDATE users
+                    SET email = %s
+                    WHERE id = %s AND role = 'admin';
+                """, (email.strip().lower(), admin_id))
+
+    @staticmethod
+    def delete(admin_id, fallback_admin_id):
+        with db_cursor(commit=True) as cursor:
+            cursor.execute("""
+                UPDATE giai_dau
+                SET owner_admin_id = %s
+                WHERE owner_admin_id = %s;
+            """, (fallback_admin_id, admin_id))
+            cursor.execute("""
+                UPDATE doi_bong
+                SET owner_admin_id = %s
+                WHERE owner_admin_id = %s;
+            """, (fallback_admin_id, admin_id))
+            cursor.execute("DELETE FROM users WHERE id = %s AND role = 'admin';", (admin_id,))
+
 
 class TournamentModel:
     """Giải đấu"""
