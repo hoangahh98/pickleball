@@ -1162,6 +1162,7 @@ def xoa_quyen_giai_dau(giai_id, permission_id):
 def cap_nhat_ty_so(tran_id):
     """Cập nhật tỷ số"""
     user = session.get('user', {})
+    is_fetch_score_update = request.is_json or request.headers.get('X-Requested-With') == 'fetch'
     try:
         data = request.get_json(silent=True) or request.form
         diem_a_raw = data.get('diem_a')
@@ -1169,8 +1170,8 @@ def cap_nhat_ty_so(tran_id):
         thu_tu_raw = data.get('thu_tu_danh', 2)
         doi_dang_giao = data.get('doi_dang_giao', 'A')
 
-        diem_a = int(diem_a_raw) if str(diem_a_raw or '').strip() != '' else None
-        diem_b = int(diem_b_raw) if str(diem_b_raw or '').strip() != '' else None
+        diem_a = int(diem_a_raw) if str(diem_a_raw or '').strip() != '' else (0 if is_fetch_score_update else None)
+        diem_b = int(diem_b_raw) if str(diem_b_raw or '').strip() != '' else (0 if is_fetch_score_update else None)
         thu_tu_danh = int(thu_tu_raw) if str(thu_tu_raw) in ('1', '2') else 2
         
         with db_cursor() as cursor:
@@ -1181,7 +1182,7 @@ def cap_nhat_ty_so(tran_id):
         
         trang_thai, diem_a, diem_b = MatchModel.update_score(tran_id, diem_a, diem_b, thu_tu_danh, doi_dang_giao)
         DBLogger.log_success(f"Match {tran_id} score updated: {diem_a}-{diem_b}-{thu_tu_danh}-{doi_dang_giao}", user.get('email'), f'/tran-dau/{tran_id}/cap-nhat-ty-so')
-        if request.is_json or request.headers.get('X-Requested-With') == 'fetch':
+        if is_fetch_score_update:
             matches = MatchModel.get_all_by_tournament(giai_id)
             return jsonify({
                 'success': True,
@@ -1197,7 +1198,7 @@ def cap_nhat_ty_so(tran_id):
         return redirect(f'/giai-dau/{giai_id}/admin')
     except Exception as e:
         DBLogger.log_error(f"Error updating match: {str(e)}", user.get('email'), f'/tran-dau/{tran_id}/cap-nhat-ty-so', context=traceback.format_exc())
-        if request.is_json or request.headers.get('X-Requested-With') == 'fetch':
+        if is_fetch_score_update:
             return jsonify({'success': False, 'error': str(e)}), 500
         return f"❌ Error: {str(e)}", 500
 

@@ -757,6 +757,11 @@ function normalizeScoreValue(value) {
     return trimmed === '' ? '' : Math.max(0, Math.min(99, Number.parseInt(trimmed, 10) || 0));
 }
 
+function scoreValueForSave(value) {
+    const normalized = normalizeScoreValue(value);
+    return normalized === '' ? 0 : normalized;
+}
+
 function maxAllowedScore(opponentScore) {
     const opponent = Number.parseInt(opponentScore, 10) || 0;
     if (opponent >= SCORE_TOUCH - 1) {
@@ -1029,8 +1034,8 @@ async function saveActiveScore() {
     if (!activeMatchCard) return;
     saveScoreTimer = null;
 
-    const diemA = normalizeScoreValue(scoreInputA.value);
-    const diemB = normalizeScoreValue(scoreInputB.value);
+    const diemA = scoreValueForSave(scoreInputA.value);
+    const diemB = scoreValueForSave(scoreInputB.value);
     const thuTuDanh = document.querySelector('input[name="scoreOrder"]:checked')?.value || '2';
     const doiDangGiao = document.querySelector('input[name="servingTeam"]:checked')?.value || 'A';
 
