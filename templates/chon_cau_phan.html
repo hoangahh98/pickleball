@@ -20,12 +20,17 @@
             border: 1px solid rgba(15, 23, 42, .08);
             border-radius: 8px;
             background: #fff;
-            transition: transform .14s ease, box-shadow .14s ease, border-color .14s ease;
+            transition: transform .14s ease, box-shadow .14s ease, border-color .14s ease, opacity .14s ease;
         }
         .module-card:hover {
             transform: translateY(-2px);
             box-shadow: 0 14px 32px rgba(15, 23, 42, .12);
             border-color: rgba(13, 110, 253, .32);
+        }
+        .module-card.loading {
+            opacity: .72;
+            pointer-events: none;
+            transform: none;
         }
         .module-icon {
             width: 48px;
@@ -38,6 +43,19 @@
         }
         .metric-strip {
             border-top: 1px solid #e5e7eb;
+        }
+        .module-loading {
+            display: none;
+            color: #0d6efd;
+            font-weight: 700;
+            border-top: 1px solid #e5e7eb;
+        }
+        .module-card.loading .module-loading {
+            display: inline-flex;
+            align-items: center;
+        }
+        .module-card.loading .metric-strip {
+            display: none !important;
         }
     </style>
     {% include '_pwa_head.html' %}
@@ -61,7 +79,7 @@
 
         <div class="row g-4">
             <div class="col-md-6">
-                <a href="/giai-dau" class="text-decoration-none text-reset">
+                <a href="/giai-dau" class="text-decoration-none text-reset module-link">
                     <section class="module-card h-100">
                         <div class="card-body p-4">
                             <div class="d-flex align-items-start gap-3 mb-4">
@@ -76,12 +94,15 @@
                                 <span>Bảng xếp hạng</span>
                                 <span>Quỹ thưởng</span>
                             </div>
+                            <div class="module-loading pt-3">
+                                <span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>Đang xử lý...
+                            </div>
                         </div>
                     </section>
                 </a>
             </div>
             <div class="col-md-6">
-                <a href="/doi-bong" class="text-decoration-none text-reset">
+                <a href="/doi-bong" class="text-decoration-none text-reset module-link">
                     <section class="module-card h-100">
                         <div class="card-body p-4">
                             <div class="d-flex align-items-start gap-3 mb-4">
@@ -96,6 +117,9 @@
                                 <span>Đóng phí</span>
                                 <span>Khoản chi</span>
                             </div>
+                            <div class="module-loading pt-3">
+                                <span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>Đang xử lý...
+                            </div>
                         </div>
                     </section>
                 </a>
@@ -104,6 +128,29 @@
     </main>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+    document.querySelectorAll('.module-link').forEach(function(link) {
+        link.addEventListener('click', function(event) {
+            if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
+                return;
+            }
+            const card = link.querySelector('.module-card');
+            if (!card || card.classList.contains('loading')) {
+                return;
+            }
+            event.preventDefault();
+            card.classList.add('loading');
+            window.setTimeout(function() {
+                window.location.href = link.href;
+            }, 120);
+        });
+    });
+    window.addEventListener('pageshow', function() {
+        document.querySelectorAll('.module-card.loading').forEach(function(card) {
+            card.classList.remove('loading');
+        });
+    });
+    </script>
 {% include '_pwa_register.html' %}
 {% include '_interaction_feedback.html' %}
 </body>
