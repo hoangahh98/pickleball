@@ -930,7 +930,10 @@ def chi_tiet_giai_admin(giai_id):
         owner_admin = AdminUserModel.get_by_id(owner_admin_id) if owner_admin_id else None
         admins = [
             admin for admin in AdminUserModel.get_all()
-            if admin[0] != owner_admin_id and admin[0] != user.get('id') and admin[0] not in permission_admin_ids
+            if (admin[1] or '').strip().lower() != 'admin@pickleball'
+            and admin[0] != owner_admin_id
+            and admin[0] != user.get('id')
+            and admin[0] not in permission_admin_ids
         ]
         is_owner = _is_super_admin(user) or owner_admin_id in (None, user.get('id'))
 
