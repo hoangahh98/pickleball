@@ -193,20 +193,34 @@ def quan_ly_giai_dau():
         return redirect(url_for('vdv_dashboard'))
     
     try:
+        scope_admin_id = _admin_scope_id(user)
         with db_cursor() as cursor:
-            cursor.execute("""
-                SELECT g.id, g.ten_giai_dau, g.so_luong_san, g.dia_diem,
-                       g.chi_phi_san_bai, g.chi_phi_nuoc_noi, g.chi_phi_giai_thuong, g.chi_phi_khac,
-                       g.ty_le_giai_1, g.ty_le_giai_2, g.ty_le_giai_3, g.so_nguoi_du_kien,
-                       g.thoi_gian_bat_dau, g.banner_image, g.qr_image,
-                       COUNT(dkg.id) as so_luong_nguoi
-                FROM giai_dau g
-                LEFT JOIN dang_ky_giai dkg ON g.id = dkg.giai_dau_id
-                LEFT JOIN giai_dau_admin_quyen q ON g.id = q.giai_dau_id AND q.admin_id = %s
-                WHERE g.owner_admin_id = %s OR q.admin_id IS NOT NULL
-                GROUP BY g.id
-                ORDER BY g.id DESC;
-            """, (user.get('id'), user.get('id')))
+            if scope_admin_id:
+                cursor.execute("""
+                    SELECT g.id, g.ten_giai_dau, g.so_luong_san, g.dia_diem,
+                           g.chi_phi_san_bai, g.chi_phi_nuoc_noi, g.chi_phi_giai_thuong, g.chi_phi_khac,
+                           g.ty_le_giai_1, g.ty_le_giai_2, g.ty_le_giai_3, g.so_nguoi_du_kien,
+                           g.thoi_gian_bat_dau, g.banner_image, g.qr_image,
+                           COUNT(dkg.id) as so_luong_nguoi
+                    FROM giai_dau g
+                    LEFT JOIN dang_ky_giai dkg ON g.id = dkg.giai_dau_id
+                    LEFT JOIN giai_dau_admin_quyen q ON g.id = q.giai_dau_id AND q.admin_id = %s
+                    WHERE g.owner_admin_id = %s OR q.admin_id IS NOT NULL
+                    GROUP BY g.id
+                    ORDER BY g.id DESC;
+                """, (scope_admin_id, scope_admin_id))
+            else:
+                cursor.execute("""
+                    SELECT g.id, g.ten_giai_dau, g.so_luong_san, g.dia_diem,
+                           g.chi_phi_san_bai, g.chi_phi_nuoc_noi, g.chi_phi_giai_thuong, g.chi_phi_khac,
+                           g.ty_le_giai_1, g.ty_le_giai_2, g.ty_le_giai_3, g.so_nguoi_du_kien,
+                           g.thoi_gian_bat_dau, g.banner_image, g.qr_image,
+                           COUNT(dkg.id) as so_luong_nguoi
+                    FROM giai_dau g
+                    LEFT JOIN dang_ky_giai dkg ON g.id = dkg.giai_dau_id
+                    GROUP BY g.id
+                    ORDER BY g.id DESC;
+                """)
             rows = cursor.fetchall()
         
         danh_sach_giai = []
@@ -392,14 +406,14 @@ def _money_from_form(value):
 
 
 def _get_team_for_admin_or_403(doi_bong_id, user):
-    doi_bong = DoiBongModel.get_by_id(doi_bong_id, user.get('id'))
+    doi_bong = DoiBongModel.get_by_id(doi_bong_id, _admin_scope_id(user))
     if not doi_bong:
         return None
     return doi_bong
 
 
 def _get_tournament_for_admin_or_403(giai_id, user):
-    giai = TournamentModel.get_details(giai_id, user.get('id'))
+    giai = TournamentModel.get_details(giai_id, _admin_scope_id(user))
     if not giai:
         return None
     return giai
@@ -408,6 +422,13 @@ def _get_tournament_for_admin_or_403(giai_id, user):
 def _is_super_admin(user=None):
     user = user or session.get('user', {})
     return (user.get('email') or '').strip().lower() == 'admin@pickleball'
+
+
+def _admin_scope_id(user=None):
+    user = user or session.get('user', {})
+    if _is_super_admin(user):
+        return None
+    return user.get('id')
 
 
 def _require_super_admin():
@@ -421,7 +442,7 @@ def _require_super_admin():
 def doi_bong_list():
     user = session.get('user', {})
     try:
-        doi_bong_list = DoiBongModel.get_all(user.get('id'))
+        doi_bong_list = DoiBongModel.get_all(_admin_scope_id(user))
         DBLogger.log_request('GET', '/doi-bong', user.get('email'))
         return render_template('doi_bong.html', doi_bong_list=doi_bong_list)
     except Exception as e:
@@ -436,7 +457,7 @@ def them_doi_bong():
     try:
         form_data, errors = normalize_team_form(request.form)
         if errors:
-            doi_bong_list = DoiBongModel.get_all(user.get('id'))
+            doi_bong_list = DoiBongModel.get_all(_admin_scope_id(user))
             return render_template('doi_bong.html', doi_bong_list=doi_bong_list, errors=errors, form_data=form_data), 400
 
         doi_bong_id = DoiBongModel.create(form_data['ten_doi'], form_data['mo_ta'], user.get('id'))
@@ -513,7 +534,7 @@ def chi_tiet_doi_bong(doi_bong_id):
             admin for admin in AdminUserModel.get_all()
             if admin[0] != owner_admin_id and admin[0] != user.get('id') and admin[0] not in permission_admin_ids
         ]
-        is_owner = doi_bong[3] in (None, user.get('id'))
+        is_owner = _is_super_admin(user) or doi_bong[3] in (None, user.get('id'))
 
         DBLogger.log_request('GET', f'/doi-bong/{doi_bong_id}', user.get('email'))
         return render_template(
@@ -677,8 +698,8 @@ def xoa_khoan_chi_doi_bong(doi_bong_id, expense_id):
 def them_quyen_doi_bong(doi_bong_id):
     user = session.get('user', {})
     try:
-        doi_bong = DoiBongModel.get_by_id(doi_bong_id, user.get('id'))
-        if not doi_bong or doi_bong[3] not in (None, user.get('id')):
+        doi_bong = DoiBongModel.get_by_id(doi_bong_id, _admin_scope_id(user))
+        if not doi_bong or (not _is_super_admin(user) and doi_bong[3] not in (None, user.get('id'))):
             return "Không có quyền phân quyền đội bóng này", 403
         admin_id = request.form.get('admin_id')
         if admin_id:
@@ -694,8 +715,8 @@ def them_quyen_doi_bong(doi_bong_id):
 def xoa_quyen_doi_bong(doi_bong_id, permission_id):
     user = session.get('user', {})
     try:
-        doi_bong = DoiBongModel.get_by_id(doi_bong_id, user.get('id'))
-        if not doi_bong or doi_bong[3] not in (None, user.get('id')):
+        doi_bong = DoiBongModel.get_by_id(doi_bong_id, _admin_scope_id(user))
+        if not doi_bong or (not _is_super_admin(user) and doi_bong[3] not in (None, user.get('id'))):
             return "Không có quyền phân quyền đội bóng này", 403
         DoiBongModel.remove_permission(doi_bong_id, permission_id)
         return redirect(f'/doi-bong/{doi_bong_id}')
@@ -910,7 +931,7 @@ def chi_tiet_giai_admin(giai_id):
             admin for admin in AdminUserModel.get_all()
             if admin[0] != owner_admin_id and admin[0] != user.get('id') and admin[0] not in permission_admin_ids
         ]
-        is_owner = owner_admin_id in (None, user.get('id'))
+        is_owner = _is_super_admin(user) or owner_admin_id in (None, user.get('id'))
 
         return render_template(
             'chi_tiet_giai_admin.html',
@@ -1110,7 +1131,7 @@ def them_quyen_giai_dau(giai_id):
     user = session.get('user', {})
     try:
         giai_raw = _get_tournament_for_admin_or_403(giai_id, user)
-        if not giai_raw or giai_raw[21] not in (None, user.get('id')):
+        if not giai_raw or (not _is_super_admin(user) and giai_raw[21] not in (None, user.get('id'))):
             return "Khong co quyen phan quyen giai dau nay", 403
         admin_id = request.form.get('admin_id')
         if admin_id:
@@ -1127,7 +1148,7 @@ def xoa_quyen_giai_dau(giai_id, permission_id):
     user = session.get('user', {})
     try:
         giai_raw = _get_tournament_for_admin_or_403(giai_id, user)
-        if not giai_raw or giai_raw[21] not in (None, user.get('id')):
+        if not giai_raw or (not _is_super_admin(user) and giai_raw[21] not in (None, user.get('id'))):
             return "Khong co quyen phan quyen giai dau nay", 403
         TournamentModel.remove_permission(giai_id, permission_id)
         return redirect(f'/giai-dau/{giai_id}/admin')
