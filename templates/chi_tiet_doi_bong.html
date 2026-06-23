@@ -25,6 +25,7 @@
             <div class="d-flex gap-2">
                 {% if can_edit %}
                 <a href="/doi-bong" class="btn btn-sm btn-outline-light">Đội bóng</a>
+                <a href="/van-dong-vien" class="btn btn-sm btn-outline-info">Vận động viên</a>
                 <a href="/" class="btn btn-sm btn-outline-light">Trang chọn</a>
                 {% else %}
                 <a href="/vdv-dashboard" class="btn btn-sm btn-outline-light">Quay lại</a>
@@ -127,12 +128,12 @@
                             <input type="hidden" name="thang" value="{{ selected_month }}">
                             <div class="col-md-6">
                                 <label class="form-label small fw-semibold">Vận động viên</label>
-                                <select name="van_dong_vien_id" class="form-select" required>
-                                    <option value="">Chọn VĐV</option>
+                                <select name="van_dong_vien_ids" class="form-select" multiple size="8" required>
                                     {% for vdv in all_vdv %}
                                     <option value="{{ vdv[0] }}">{{ vdv[1] }} - {{ vdv[2] }} - {{ vdv[3] }}</option>
                                     {% endfor %}
                                 </select>
+                                <div class="form-text">Giữ Ctrl hoặc chạm để chọn nhiều VĐV rồi lưu một lần.</div>
                             </div>
                             <div class="col-md-3">
                                 <label class="form-label small fw-semibold">Loại</label>
@@ -146,7 +147,7 @@
                                 <input type="text" class="form-control" name="ghi_chu">
                             </div>
                             <div class="col-12 d-flex justify-content-end">
-                                <button type="submit" class="btn btn-primary">Thêm thành viên</button>
+                                <button type="submit" class="btn btn-primary">Lưu thành viên đã chọn</button>
                             </div>
                         </form>
                         {% if not all_vdv %}
@@ -221,13 +222,14 @@
                             <select name="admin_id" class="form-select" required>
                                 <option value="">Chọn admin</option>
                                 {% for admin in admins %}
-                                    {% if admin[0] != doi_bong[3] %}
-                                    <option value="{{ admin[0] }}">{{ admin[1] }}</option>
-                                    {% endif %}
+                                <option value="{{ admin[0] }}">{{ admin[1] }}</option>
                                 {% endfor %}
                             </select>
                             <button type="submit" class="btn btn-primary">Thêm</button>
                         </form>
+                        {% if not admins %}
+                        <div class="text-muted small mb-3">Không còn admin nào có thể cấp thêm quyền.</div>
+                        {% endif %}
                         {% if permissions %}
                         {% for permission in permissions %}
                         <div class="d-flex justify-content-between align-items-center border rounded p-2 mb-2">

@@ -486,8 +486,13 @@ def chi_tiet_doi_bong(doi_bong_id):
             available_months.insert(0, selected_month[:7])
         registered_vdv_ids = {member[1] for member in members if member[1]}
         all_vdv = [vdv for vdv in VanDongVienModel.get_all() if vdv[0] not in registered_vdv_ids]
-        admins = AdminUserModel.get_all()
         permissions = DoiBongModel.get_permissions(doi_bong_id)
+        permission_admin_ids = {permission[1] for permission in permissions}
+        owner_admin_id = doi_bong[3]
+        admins = [
+            admin for admin in AdminUserModel.get_all()
+            if admin[0] != owner_admin_id and admin[0] not in permission_admin_ids
+        ]
         is_owner = doi_bong[3] in (None, user.get('id'))
 
         DBLogger.log_request('GET', f'/doi-bong/{doi_bong_id}', user.get('email'))
@@ -541,15 +546,26 @@ def them_thanh_vien_doi_bong(doi_bong_id):
     try:
         if not _get_team_for_admin_or_403(doi_bong_id, user):
             return "Không có quyền cập nhật đội bóng này", 403
-        form_data, errors = normalize_team_member_form(request.form)
-        if not errors:
-            DoiBongModel.add_member(
-                doi_bong_id,
-                form_data['van_dong_vien_id'],
-                form_data['loai_thanh_vien'],
-                form_data['ghi_chu'],
-            )
-            DBLogger.log_success(f"Team member added: {form_data['van_dong_vien_id']}", user.get('email'), f'/doi-bong/{doi_bong_id}/thanh-vien/them')
+        van_dong_vien_ids = request.form.getlist('van_dong_vien_ids')
+        loai_thanh_vien = request.form.get('loai_thanh_vien', 'co_dinh')
+        ghi_chu = (request.form.get('ghi_chu') or '').strip()
+        added_count = 0
+        for van_dong_vien_id in van_dong_vien_ids:
+            form_data, errors = normalize_team_member_form({
+                'van_dong_vien_id': van_dong_vien_id,
+                'loai_thanh_vien': loai_thanh_vien,
+                'ghi_chu': ghi_chu,
+            })
+            if not errors:
+                added_id = DoiBongModel.add_member(
+                    doi_bong_id,
+                    form_data['van_dong_vien_id'],
+                    form_data['loai_thanh_vien'],
+                    form_data['ghi_chu'],
+                )
+                if added_id:
+                    added_count += 1
+        DBLogger.log_success(f"Team members added: {added_count}", user.get('email'), f'/doi-bong/{doi_bong_id}/thanh-vien/them')
         return redirect(f'/doi-bong/{doi_bong_id}?thang={selected_month}')
     except Exception as e:
         DBLogger.log_error(f"Error adding team member: {str(e)}", user.get('email'), f'/doi-bong/{doi_bong_id}/thanh-vien/them', context=traceback.format_exc())
