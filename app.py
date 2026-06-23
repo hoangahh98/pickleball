@@ -1203,11 +1203,17 @@ def cap_nhat_ty_so(tran_id):
         return f"❌ Error: {str(e)}", 500
 
 @app.route('/giai-dau/<int:giai_id>/live-scores')
-@admin_required
+@login_required
 def live_scores_giai_dau(giai_id):
     user = session.get('user', {})
     try:
-        if not _get_tournament_for_admin_or_403(giai_id, user):
+        can_view = False
+        if user.get('role') == 'admin':
+            can_view = bool(_get_tournament_for_admin_or_403(giai_id, user))
+        elif user.get('role') == 'vdv':
+            can_view = any(t[1] == giai_id for t in DangKyGiaiModel.get_by_vdv(user.get('id')))
+
+        if not can_view:
             return jsonify({'success': False, 'error': 'Khong co quyen xem giai dau nay'}), 403
 
         matches = MatchModel.get_all_by_tournament(giai_id)
