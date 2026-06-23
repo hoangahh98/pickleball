@@ -281,17 +281,26 @@ BTC</textarea>
                                 <a href="/sua-giai-dau/{{ giai.id }}" class="alert-link">Tăng giới hạn?</a>
                             </div>
                         {% else %}
-                            <form action="/giai-dau/{{ giai.id }}/dang-ky" method="POST" class="mt-2">
+                            <form id="tournamentPlayerAddForm" action="/giai-dau/{{ giai.id }}/dang-ky" method="POST" class="mt-2">
                                 {% set slots_left = (giai.so_nguoi_du_kien - registrations|length) if giai.so_nguoi_du_kien else 9999 %}
-                                <label class="form-label small fw-semibold mb-1" for="playerMultiSelect">Chọn VĐV <span class="text-danger">*</span></label>
-                                <select class="form-select form-select-sm" id="playerMultiSelect" name="van_dong_vien_ids" multiple size="6" required data-slots-left="{{ slots_left }}">
+                                <label class="form-label small fw-semibold mb-1" for="tournamentPlayerList">Chọn VĐV <span class="text-danger">*</span></label>
+                                <div id="tournamentPlayerList" class="border rounded p-2 bg-white" style="max-height: 260px; overflow-y: auto;" data-slots-left="{{ slots_left }}">
                                     {% for vdv in giai.all_vdv %}
                                         {% if vdv[0] not in registered_ids %}
-                                        <option value="{{ vdv[0] }}">{{ vdv[1] }} ({{ vdv[2] }})</option>
+                                        <label class="d-flex align-items-start gap-2 border-bottom py-2 mb-0">
+                                            <input type="checkbox" class="form-check-input mt-1 tournament-player-checkbox" name="van_dong_vien_ids" value="{{ vdv[0] }}">
+                                            <span>
+                                                <span class="fw-semibold">{{ vdv[1] }}</span>
+                                                <span class="text-muted small d-block">{{ vdv[2] }}{% if vdv[3] %} - {{ vdv[3] }}{% endif %}</span>
+                                            </span>
+                                        </label>
                                         {% endif %}
                                     {% endfor %}
-                                </select>
-                                <div id="playerSelectHint" class="form-text">Còn {{ slots_left }} chỗ trống. Chạm để chọn nhiều người.</div>
+                                </div>
+                                <div class="form-text d-flex justify-content-between gap-2">
+                                    <span>Còn {{ slots_left }} chỗ trống. Chọn một hoặc nhiều VĐV rồi lưu một lần.</span>
+                                    <span id="playerSelectHint" class="fw-semibold text-primary text-nowrap">Đã chọn 0 mục</span>
+                                </div>
                                 <div class="d-flex gap-2 mt-2">
                                     <button type="submit" class="btn btn-success btn-sm text-nowrap">💾 Lưu đã chọn</button>
                                 </div>
@@ -1033,27 +1042,41 @@ if ('speechSynthesis' in window) {
     window.speechSynthesis.onvoiceschanged = loadVietnameseVoice;
 }
 
-const playerMultiSelect = document.getElementById('playerMultiSelect');
+const tournamentPlayerAddForm = document.getElementById('tournamentPlayerAddForm');
+const tournamentPlayerList = document.getElementById('tournamentPlayerList');
+const tournamentPlayerCheckboxes = Array.from(document.querySelectorAll('.tournament-player-checkbox'));
 const playerSelectHint = document.getElementById('playerSelectHint');
-if (playerMultiSelect) {
-    const updatePlayerSelectHint = () => {
-        const maxSelected = Number.parseInt(playerMultiSelect.dataset.slotsLeft, 10) || 0;
-        const selected = Array.from(playerMultiSelect.selectedOptions);
-        if (selected.length > maxSelected) {
-            selected.slice(maxSelected).forEach((option) => { option.selected = false; });
-            playerSelectHint.textContent = `Chỉ còn ${maxSelected} chỗ trống, không thể chọn thêm.`;
-            playerSelectHint.className = 'form-text text-danger';
-        } else {
-            playerSelectHint.textContent = `Đã chọn ${selected.length}/${maxSelected} chỗ trống.`;
-            playerSelectHint.className = 'form-text text-muted';
+function setPlayerSelectHint(text, type = 'primary') {
+    if (!playerSelectHint) {
+        return;
+    }
+    playerSelectHint.textContent = text;
+    playerSelectHint.classList.remove('text-primary', 'text-danger', 'text-muted');
+    playerSelectHint.classList.add(`text-${type}`);
+}
+function updatePlayerSelectHint() {
+    if (!playerSelectHint) {
+        return;
+    }
+    const maxSelected = Number.parseInt(tournamentPlayerList?.dataset.slotsLeft || '0', 10) || 0;
+    const selected = tournamentPlayerCheckboxes.filter(checkbox => checkbox.checked);
+    tournamentPlayerCheckboxes
+        .filter(checkbox => !checkbox.checked)
+        .forEach(checkbox => { checkbox.disabled = maxSelected > 0 && selected.length >= maxSelected; });
+    setPlayerSelectHint(`Đã chọn ${selected.length} mục`, 'primary');
+}
+if (tournamentPlayerCheckboxes.length) {
+    tournamentPlayerCheckboxes.forEach(checkbox => {
+        checkbox.addEventListener('change', updatePlayerSelectHint);
+    });
+    updatePlayerSelectHint();
+}
+if (tournamentPlayerAddForm) {
+    tournamentPlayerAddForm.addEventListener('submit', event => {
+        if (!tournamentPlayerCheckboxes.some(checkbox => checkbox.checked)) {
+            event.preventDefault();
+            setPlayerSelectHint('Chưa chọn VĐV nào', 'danger');
         }
-    };
-    const schedulePlayerSelectHintUpdate = () => {
-        window.setTimeout(updatePlayerSelectHint, 0);
-        window.setTimeout(updatePlayerSelectHint, 80);
-    };
-    ['change', 'input', 'click', 'touchend', 'keyup'].forEach((eventName) => {
-        playerMultiSelect.addEventListener(eventName, schedulePlayerSelectHintUpdate);
     });
 }
 </script>

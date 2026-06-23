@@ -304,7 +304,9 @@
                                         {% endif %}
                                     </td>
                                     <td>
-                                        {% if tv.chenh_lech > 0 %}
+                                        {% if tv.loai_thanh_vien == 'vang_lai' %}
+                                        <span class="text-muted small">-</span>
+                                        {% elif tv.chenh_lech > 0 %}
                                         <span class="badge bg-success">+{{ "{:,.0f}".format(tv.chenh_lech) }}đ</span>
                                         {% elif tv.chenh_lech == 0 and finance.muc_phi_thang > 0 %}
                                         <span class="badge bg-primary">Đủ phí</span>
