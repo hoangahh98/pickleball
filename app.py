@@ -1182,6 +1182,7 @@ def cap_nhat_ty_so(tran_id):
         trang_thai, diem_a, diem_b = MatchModel.update_score(tran_id, diem_a, diem_b, thu_tu_danh, doi_dang_giao)
         DBLogger.log_success(f"Match {tran_id} score updated: {diem_a}-{diem_b}-{thu_tu_danh}-{doi_dang_giao}", user.get('email'), f'/tran-dau/{tran_id}/cap-nhat-ty-so')
         if request.is_json or request.headers.get('X-Requested-With') == 'fetch':
+            matches = MatchModel.get_all_by_tournament(giai_id)
             return jsonify({
                 'success': True,
                 'tran_id': tran_id,
@@ -1190,7 +1191,8 @@ def cap_nhat_ty_so(tran_id):
                 'diem_b': diem_b,
                 'thu_tu_danh': thu_tu_danh,
                 'doi_dang_giao': doi_dang_giao,
-                'trang_thai': trang_thai
+                'trang_thai': trang_thai,
+                'ranking': MatchModel.get_bang_xep_hang_by_matches(matches),
             })
         return redirect(f'/giai-dau/{giai_id}/admin')
     except Exception as e:
@@ -1211,6 +1213,7 @@ def live_scores_giai_dau(giai_id):
         return jsonify({
             'success': True,
             'giai_id': giai_id,
+            'ranking': MatchModel.get_bang_xep_hang_by_matches(matches),
             'matches': [
                 {
                     'tran_id': match[0],

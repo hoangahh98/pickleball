@@ -381,7 +381,7 @@ BTC</textarea>
         <div class="col-md-6">
             <div class="card h-100">
                 <div class="card-hdr green">📊 BẢNG XẾP HẠNG</div>
-                <div class="card-body p-2">
+                <div id="rankingContainer" class="card-body p-2">
                     {% if giai.bang_xep_hang %}
                     <table class="table table-sm table-hover mb-0 text-center">
                         <thead class="table-dark">
@@ -866,6 +866,68 @@ function applyMatchUpdate(card, match, options = {}) {
     }
 }
 
+function escapeHtml(value) {
+    const div = document.createElement('div');
+    div.textContent = value ?? '';
+    return div.innerHTML;
+}
+
+function formatSignedNumber(value) {
+    const number = Number.parseInt(value, 10) || 0;
+    return `${number > 0 ? '+' : ''}${number}`;
+}
+
+function renderRanking(ranking) {
+    const container = document.getElementById('rankingContainer');
+    if (!container || !Array.isArray(ranking)) return;
+
+    if (!ranking.length) {
+        container.innerHTML = `
+            <div class="d-flex flex-column align-items-center justify-content-center h-100 text-muted py-5">
+                <span class="fs-2">📭</span>
+                <p class="mt-2 mb-0 small">Chưa có kết quả thi đấu</p>
+            </div>
+        `;
+        return;
+    }
+
+    const rows = ranking.map((doi, index) => {
+        const rank = index + 1;
+        const rankLabel = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : rank;
+        const rankClass = rank === 1 ? 'rank-1' : rank === 2 ? 'rank-2' : rank === 3 ? 'rank-3' : '';
+        const hieuSo = Number.parseInt(doi.hieu_so, 10) || 0;
+        const hieuSoClass = hieuSo > 0 ? 'hieu-so-pos' : hieuSo < 0 ? 'hieu-so-neg' : '';
+        return `
+            <tr class="${rankClass}">
+                <td>${rankLabel}</td>
+                <td class="text-start fw-bold">${escapeHtml(doi.ten)}</td>
+                <td>${doi.so_tran || 0}</td>
+                <td class="text-success fw-bold">${doi.thang || 0}</td>
+                <td class="text-danger">${doi.thua || 0}</td>
+                <td><span class="badge bg-primary rounded-pill">${doi.diem || 0}</span></td>
+                <td class="${hieuSoClass}">${formatSignedNumber(hieuSo)}</td>
+            </tr>
+        `;
+    }).join('');
+
+    container.innerHTML = `
+        <table class="table table-sm table-hover mb-0 text-center">
+            <thead class="table-dark">
+                <tr>
+                    <th style="width:36px">#</th>
+                    <th class="text-start">Tên</th>
+                    <th>Trận</th>
+                    <th class="text-success">W</th>
+                    <th class="text-danger">L</th>
+                    <th>Điểm</th>
+                    <th>Hiệu số</th>
+                </tr>
+            </thead>
+            <tbody>${rows}</tbody>
+        </table>
+    `;
+}
+
 function openScoreModal(card) {
     activeMatchCard = card;
     document.getElementById('scoreTeamA').textContent = card.dataset.teamA.replaceAll(' + ', '\n');
@@ -996,6 +1058,7 @@ async function saveActiveScore() {
         }
 
         applyMatchUpdate(activeMatchCard, result, { updateModal: true });
+        renderRanking(result.ranking);
         previousScoreState = {
             a: normalizeScoreValue(activeMatchCard.dataset.scoreA) || 0,
             b: normalizeScoreValue(activeMatchCard.dataset.scoreB) || 0,
@@ -1077,6 +1140,7 @@ async function pollLiveScores() {
             return;
         }
 
+        renderRanking(result.ranking);
         result.matches.forEach((match) => {
             const card = document.querySelector(`.tran-card[data-match-id="${match.tran_id}"]`);
             if (!card) return;
