@@ -42,10 +42,6 @@
                     <h5 class="text-success fw-bold mb-1">{{ doi_bong[1] }}</h5>
                     <div class="text-muted small">{{ doi_bong[2] or 'Chưa có ghi chú' }}</div>
                 </div>
-                <button type="button" class="btn btn-info text-white fw-bold align-self-end"
-                        data-bs-toggle="modal" data-bs-target="#modalTeamGetEmail">
-                    📧 Get Email
-                </button>
                 <form method="GET" action="{{ '/doi-bong/' ~ doi_bong[0] if can_edit else '/doi-bong/' ~ doi_bong[0] ~ '/vdv' }}" class="d-flex align-items-end gap-2">
                     <div>
                         <label class="form-label small fw-semibold mb-1">Tháng quỹ</label>
@@ -354,7 +350,11 @@
                         </table>
                     </div>
                     {% if can_edit %}
-                    <div class="p-3 text-end">
+                    <div class="p-3 text-end d-flex gap-2 justify-content-end flex-wrap">
+                        <button type="button" class="btn btn-info text-white fw-bold"
+                                data-bs-toggle="modal" data-bs-target="#modalTeamGetEmail">
+                            📧 Get Email
+                        </button>
                         <button type="submit" class="btn btn-success fw-bold">Lưu đóng phí</button>
                     </div>
                     {% endif %}
