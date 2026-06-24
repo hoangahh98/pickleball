@@ -1086,6 +1086,10 @@ function getCurrentScoreSpeechText() {
     return winnerName ? `${scoreText}. Chúc mừng đội ${winnerName} chiến thắng` : scoreText;
 }
 
+function formatTeamNameForSpeech(name) {
+    return String(name || '').replace(/\s*\+\s*/g, ' và ');
+}
+
 function getWinnerName(diemA, diemB) {
     const diff = Math.abs(diemA - diemB);
     const high = Math.max(diemA, diemB);
@@ -1093,7 +1097,8 @@ function getWinnerName(diemA, diemB) {
     if (!finished || diemA === diemB || !activeMatchCard) {
         return null;
     }
-    return diemA > diemB ? activeMatchCard.dataset.teamA : activeMatchCard.dataset.teamB;
+    const winnerName = diemA > diemB ? activeMatchCard.dataset.teamA : activeMatchCard.dataset.teamB;
+    return formatTeamNameForSpeech(winnerName);
 }
 
 function loadVietnameseVoice() {
