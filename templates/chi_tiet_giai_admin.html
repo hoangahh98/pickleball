@@ -363,7 +363,7 @@ BTC</textarea>
                         <p class="text-center text-muted small mb-0">Chưa có ai vượt mức lệ phí.</p>
                         {% endif %}
                         <hr class="my-2">
-                        <form action="/giai-dau/{{ giai.id }}/cap-nhat-giai-thuong" method="POST">
+                        <form id="prizeForm" action="/giai-dau/{{ giai.id }}/cap-nhat-giai-thuong" method="POST">
                             <div class="small fw-bold text-muted mb-2">Nhập tiền thưởng</div>
                             <div class="row g-2">
                                 <div class="col-4">
@@ -386,7 +386,12 @@ BTC</textarea>
                                 </div>
                             </div>
                             <div class="form-text">Để trống để tính theo tỷ lệ. Tổng nhập tay không vượt {{ "{:,.0f}".format(giai.quy_giai_thuong_thuc_te) }}đ.</div>
-                            <button type="submit" class="btn btn-warning btn-sm w-100 mt-2">Lưu tiền thưởng</button>
+                            <div class="d-grid gap-2 mt-2">
+                                <button type="submit" class="btn btn-warning btn-sm">Lưu tiền thưởng</button>
+                                <button type="button" id="resetPrizeDefaults" class="btn btn-outline-secondary btn-sm">
+                                    Đặt lại theo tỷ lệ mặc định
+                                </button>
+                            </div>
                         </form>
                     </div>
                 </div>
@@ -1286,6 +1291,8 @@ const tournamentPlayerAddForm = document.getElementById('tournamentPlayerAddForm
 const tournamentPlayerList = document.getElementById('tournamentPlayerList');
 const tournamentPlayerCheckboxes = Array.from(document.querySelectorAll('.tournament-player-checkbox'));
 const playerSelectHint = document.getElementById('playerSelectHint');
+const resetPrizeDefaultsBtn = document.getElementById('resetPrizeDefaults');
+const prizeForm = document.getElementById('prizeForm');
 function setPlayerSelectHint(text, type = 'primary') {
     if (!playerSelectHint) {
         return;
@@ -1317,6 +1324,18 @@ if (tournamentPlayerAddForm) {
             event.preventDefault();
             setPlayerSelectHint('Chưa chọn VĐV nào', 'danger');
         }
+    });
+}
+
+if (resetPrizeDefaultsBtn && prizeForm) {
+    resetPrizeDefaultsBtn.addEventListener('click', () => {
+        ['tien_giai_1', 'tien_giai_2', 'tien_giai_3'].forEach((fieldName) => {
+            const input = prizeForm.querySelector(`[name="${fieldName}"]`);
+            if (input) {
+                input.value = '';
+            }
+        });
+        prizeForm.submit();
     });
 }
 </script>
