@@ -762,12 +762,19 @@ const SCORE_TOUCH = {{ giai.diem_cham or 11 }};
 const SCORE_MAX = {{ giai.diem_toi_da or 15 }};
 let activeMatchCard = null;
 let saveScoreTimer = null;
+let speakScoreTimer = null;
 let previousScoreState = { a: 0, b: 0, order: '2', servingTeam: 'A' };
 let vietnameseVoice = null;
 let liveScorePollBusy = false;
 let isSavingScore = false;
+let pendingSaveAfterCurrent = false;
+let lastSaveRequestId = 0;
+let lastQueuedScoreKey = '';
+let lastSavedScoreKey = '';
 const LIVE_SCORE_URL = '/giai-dau/{{ giai.id }}/live-scores';
 const LIVE_SCORE_POLL_MS = 2000;
+const SCORE_SAVE_DELAY_MS = 220;
+const SCORE_SPEAK_DELAY_MS = 120;
 
 function normalizeScoreValue(value) {
     const trimmed = String(value ?? '').trim();
@@ -837,6 +844,24 @@ function stepScore(side, delta) {
     scheduleScoreSave();
 }
 
+function getCurrentScorePayload() {
+    return {
+        diem_a: scoreValueForSave(scoreInputA.value),
+        diem_b: scoreValueForSave(scoreInputB.value),
+        thu_tu_danh: document.querySelector('input[name="scoreOrder"]:checked')?.value || '2',
+        doi_dang_giao: document.querySelector('input[name="servingTeam"]:checked')?.value || 'A'
+    };
+}
+
+function getScoreKey(payload) {
+    return [
+        payload.diem_a,
+        payload.diem_b,
+        payload.thu_tu_danh,
+        payload.doi_dang_giao
+    ].join('|');
+}
+
 function formatLiveScore(diemA, diemB, order) {
     return `${diemA || 0} – ${diemB || 0} - ${order || 2}`;
 }
@@ -886,6 +911,22 @@ function applyMatchUpdate(card, match, options = {}) {
         };
         updateServingHighlight();
     }
+}
+
+function applyActiveScoreOptimistic() {
+    if (!activeMatchCard) return;
+    const payload = getCurrentScorePayload();
+    const diff = Math.abs(payload.diem_a - payload.diem_b);
+    const high = Math.max(payload.diem_a, payload.diem_b);
+    const finished = high >= SCORE_MAX || (high >= SCORE_TOUCH && diff >= 2 && payload.diem_a !== payload.diem_b);
+    applyMatchUpdate(activeMatchCard, {
+        tran_id: activeMatchCard.dataset.matchId,
+        diem_a: payload.diem_a,
+        diem_b: payload.diem_b,
+        thu_tu_danh: payload.thu_tu_danh,
+        doi_dang_giao: payload.doi_dang_giao,
+        trang_thai: finished ? 'Đã xong' : 'Đang đánh'
+    }, { updateModal: false });
 }
 
 function escapeHtml(value) {
@@ -966,6 +1007,9 @@ function openScoreModal(card) {
         order: card.dataset.order || '2',
         servingTeam: card.dataset.servingTeam || 'A'
     };
+    const initialPayload = getCurrentScorePayload();
+    lastQueuedScoreKey = getScoreKey(initialPayload);
+    lastSavedScoreKey = lastQueuedScoreKey;
     updateServingHighlight();
     setSaveStatus('Chưa thay đổi');
     scoreModal.show();
@@ -976,10 +1020,18 @@ function scheduleScoreSave() {
     if (!activeMatchCard) return;
     scoreInputA.max = maxAllowedScore(scoreInputB.value);
     scoreInputB.max = maxAllowedScore(scoreInputA.value);
+    applyActiveScoreOptimistic();
+    const payload = getCurrentScorePayload();
+    lastQueuedScoreKey = getScoreKey(payload);
+    if (lastQueuedScoreKey === lastSavedScoreKey && !isSavingScore) {
+        setSaveStatus('Đã tự lưu', 'text-success');
+        scheduleSpeakCurrentScore();
+        return;
+    }
     window.clearTimeout(saveScoreTimer);
     setSaveStatus('Đang chờ tự lưu...', 'text-primary');
-    speakCurrentScore();
-    saveScoreTimer = window.setTimeout(saveActiveScore, 650);
+    scheduleSpeakCurrentScore();
+    saveScoreTimer = window.setTimeout(saveActiveScore, SCORE_SAVE_DELAY_MS);
 }
 
 function readVietnameseNumber(value) {
@@ -1017,6 +1069,11 @@ function speakCurrentScore() {
     window.speechSynthesis.speak(utterance);
 }
 
+function scheduleSpeakCurrentScore() {
+    window.clearTimeout(speakScoreTimer);
+    speakScoreTimer = window.setTimeout(speakCurrentScore, SCORE_SPEAK_DELAY_MS);
+}
+
 function getCurrentScoreSpeechText() {
     const diemA = normalizeScoreValue(scoreInputA.value) || 0;
     const diemB = normalizeScoreValue(scoreInputB.value) || 0;
@@ -1050,11 +1107,18 @@ function loadVietnameseVoice() {
 async function saveActiveScore() {
     if (!activeMatchCard) return;
     saveScoreTimer = null;
+    if (isSavingScore) {
+        pendingSaveAfterCurrent = true;
+        return;
+    }
 
-    const diemA = scoreValueForSave(scoreInputA.value);
-    const diemB = scoreValueForSave(scoreInputB.value);
-    const thuTuDanh = document.querySelector('input[name="scoreOrder"]:checked')?.value || '2';
-    const doiDangGiao = document.querySelector('input[name="servingTeam"]:checked')?.value || 'A';
+    const payload = getCurrentScorePayload();
+    const requestScoreKey = getScoreKey(payload);
+    if (requestScoreKey === lastSavedScoreKey) {
+        setSaveStatus('Đã tự lưu', 'text-success');
+        return;
+    }
+    const requestId = ++lastSaveRequestId;
 
     activeMatchCard.classList.add('saving');
     isSavingScore = true;
@@ -1067,20 +1131,24 @@ async function saveActiveScore() {
                 'Content-Type': 'application/json',
                 'X-Requested-With': 'fetch'
             },
-            body: JSON.stringify({
-                diem_a: diemA,
-                diem_b: diemB,
-                thu_tu_danh: thuTuDanh,
-                doi_dang_giao: doiDangGiao
-            })
+            body: JSON.stringify(payload)
         });
         const result = await response.json();
         if (!response.ok || !result.success) {
             throw new Error(result.error || 'Không lưu được điểm');
         }
+        if (requestId !== lastSaveRequestId || requestScoreKey !== lastQueuedScoreKey) {
+            return;
+        }
 
         applyMatchUpdate(activeMatchCard, result, { updateModal: true });
         renderRanking(result.ranking);
+        lastSavedScoreKey = getScoreKey({
+            diem_a: scoreValueForSave(result.diem_a),
+            diem_b: scoreValueForSave(result.diem_b),
+            thu_tu_danh: String(result.thu_tu_danh || '2'),
+            doi_dang_giao: result.doi_dang_giao || 'A'
+        });
         previousScoreState = {
             a: normalizeScoreValue(activeMatchCard.dataset.scoreA) || 0,
             b: normalizeScoreValue(activeMatchCard.dataset.scoreB) || 0,
@@ -1093,6 +1161,11 @@ async function saveActiveScore() {
     } finally {
         activeMatchCard.classList.remove('saving');
         isSavingScore = false;
+        if (pendingSaveAfterCurrent || lastQueuedScoreKey !== lastSavedScoreKey) {
+            pendingSaveAfterCurrent = false;
+            window.clearTimeout(saveScoreTimer);
+            saveScoreTimer = window.setTimeout(saveActiveScore, SCORE_SAVE_DELAY_MS);
+        }
     }
 }
 
@@ -1125,7 +1198,9 @@ document.querySelectorAll('.tran-card[data-match-id]').forEach((card) => {
             return;
         }
         applyScoreLimit(input);
-        scheduleScoreSave();
+        if (getScoreKey(getCurrentScorePayload()) !== lastQueuedScoreKey) {
+            scheduleScoreSave();
+        }
     });
 });
 

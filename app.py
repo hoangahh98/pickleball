@@ -530,9 +530,13 @@ def chi_tiet_doi_bong(doi_bong_id):
         permissions = DoiBongModel.get_permissions(doi_bong_id)
         permission_admin_ids = {permission[1] for permission in permissions}
         owner_admin_id = doi_bong[3]
+        owner_admin = AdminUserModel.get_by_id(owner_admin_id) if owner_admin_id else None
         admins = [
             admin for admin in AdminUserModel.get_all()
-            if admin[0] != owner_admin_id and admin[0] != user.get('id') and admin[0] not in permission_admin_ids
+            if (admin[1] or '').strip().lower() != 'admin@pickleball'
+            and admin[0] != owner_admin_id
+            and admin[0] != user.get('id')
+            and admin[0] not in permission_admin_ids
         ]
         is_owner = _is_super_admin(user) or doi_bong[3] in (None, user.get('id'))
 
@@ -545,6 +549,7 @@ def chi_tiet_doi_bong(doi_bong_id):
             available_months=available_months,
             all_vdv=all_vdv,
             admins=admins,
+            owner_admin=owner_admin,
             permissions=permissions,
             can_edit=True,
             is_owner=is_owner,
@@ -1186,7 +1191,8 @@ def cap_nhat_ty_so(tran_id):
             return "Khong co quyen cap nhat giai dau nay", 403
         
         trang_thai, diem_a, diem_b = MatchModel.update_score(tran_id, diem_a, diem_b, thu_tu_danh, doi_dang_giao)
-        DBLogger.log_success(f"Match {tran_id} score updated: {diem_a}-{diem_b}-{thu_tu_danh}-{doi_dang_giao}", user.get('email'), f'/tran-dau/{tran_id}/cap-nhat-ty-so')
+        if not is_fetch_score_update:
+            DBLogger.log_success(f"Match {tran_id} score updated: {diem_a}-{diem_b}-{thu_tu_danh}-{doi_dang_giao}", user.get('email'), f'/tran-dau/{tran_id}/cap-nhat-ty-so')
         if is_fetch_score_update:
             matches = MatchModel.get_all_by_tournament(giai_id)
             return jsonify({

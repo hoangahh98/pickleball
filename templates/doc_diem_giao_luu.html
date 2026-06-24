@@ -195,6 +195,7 @@
 
         let state = loadState();
         let voices = [];
+        let speakTimer = null;
 
         function loadState() {
             try {
@@ -345,7 +346,8 @@
                 setStatus('Trình duyệt này không hỗ trợ đọc điểm.');
                 return;
             }
-            const utterance = new SpeechSynthesisUtterance(getScoreText());
+            const scoreText = getScoreText();
+            const utterance = new SpeechSynthesisUtterance(scoreText);
             refreshVoices();
             const viVoice = voices.find(voice => voice.lang && voice.lang.toLowerCase().startsWith('vi'));
             if (viVoice) {
@@ -356,7 +358,12 @@
             utterance.pitch = 1;
             window.speechSynthesis.cancel();
             window.speechSynthesis.speak(utterance);
-            setStatus(getScoreText());
+            setStatus(scoreText);
+        }
+
+        function scheduleSpeakScore() {
+            window.clearTimeout(speakTimer);
+            speakTimer = window.setTimeout(speakScore, 120);
         }
 
         function changeScore(team, delta) {
@@ -374,7 +381,7 @@
                 state.scoreB += delta;
             }
             render();
-            speakScore();
+            scheduleSpeakScore();
         }
 
         function changeServingTeam(team) {
@@ -388,7 +395,7 @@
             state.servingTeam = team;
             state.order = 1;
             render();
-            speakScore();
+            scheduleSpeakScore();
         }
 
         document.querySelectorAll('.team-card').forEach(card => {
@@ -406,7 +413,7 @@
             button.addEventListener('click', () => {
                 state.order = parseInt(button.dataset.order, 10);
                 render();
-                speakScore();
+                scheduleSpeakScore();
             });
         });
 
@@ -420,7 +427,7 @@
                 order: 2
             };
             render();
-            speakScore();
+            scheduleSpeakScore();
         });
 
         document.getElementById('teamAName').addEventListener('input', event => {
