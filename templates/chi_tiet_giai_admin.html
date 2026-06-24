@@ -1329,6 +1329,11 @@ if (tournamentPlayerAddForm) {
 
 if (resetPrizeDefaultsBtn && prizeForm) {
     resetPrizeDefaultsBtn.addEventListener('click', () => {
+        resetPrizeDefaultsBtn.disabled = true;
+        resetPrizeDefaultsBtn.textContent = 'Đang đặt lại...';
+        prizeForm.querySelectorAll('button').forEach((button) => {
+            button.disabled = true;
+        });
         ['tien_giai_1', 'tien_giai_2', 'tien_giai_3'].forEach((fieldName) => {
             const input = prizeForm.querySelector(`[name="${fieldName}"]`);
             if (input) {
