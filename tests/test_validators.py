@@ -55,15 +55,35 @@ class NormalizeTournamentFormTest(unittest.TestCase):
         self.assertEqual(data["diem_cham"], 11)
         self.assertEqual(data["diem_toi_da"], 15)
 
-    def test_rejects_missing_name_and_bad_number(self):
+    def test_rejects_missing_name_and_bad_number_without_resetting_field(self):
         data, errors = normalize_tournament_form({
             "ten_giai_dau": " ",
             "so_luong_san": "abc",
         })
 
-        self.assertEqual(data["so_luong_san"], 1)
+        self.assertEqual(data["so_luong_san"], "abc")
         self.assertIn("Tên giải không được để trống.", errors)
         self.assertIn("Các trường số chỉ được nhập số hợp lệ.", errors)
+
+    def test_accepts_decimal_integer_prize_ratios_from_db_form(self):
+        data, errors = normalize_tournament_form({
+            "ten_giai_dau": "Giai decimal",
+            "so_luong_san": "2.0",
+            "so_nguoi_du_kien": "16.0",
+            "diem_cham": "11.0",
+            "diem_toi_da": "15.0",
+            "chi_phi_san_bai": "100000.0",
+            "ty_le_giai_1": "7.0",
+            "ty_le_giai_2": "3.0",
+            "ty_le_giai_3": "0.0",
+        })
+
+        self.assertEqual(errors, [])
+        self.assertEqual(data["so_luong_san"], 2)
+        self.assertEqual(data["chi_phi_san_bai"], 100000)
+        self.assertEqual(data["ty_le_giai_1"], 7)
+        self.assertEqual(data["ty_le_giai_2"], 3)
+        self.assertEqual(data["ty_le_giai_3"], 0)
 
     def test_blank_prize_ratio_defaults_to_zero(self):
         data, errors = normalize_tournament_form({

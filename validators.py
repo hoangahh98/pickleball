@@ -1,10 +1,23 @@
 import re
+from decimal import Decimal, InvalidOperation
 
 
 VALID_TRINH_DO = {"A", "B", "C", "D"}
 VALID_LOAI_DAU = {"don", "doi"}
 VALID_LOAI_THANH_VIEN = {"co_dinh", "vang_lai"}
 EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
+
+def _normalize_numeric_text(value):
+    raw = (str(value).strip() if value is not None else "")
+    if raw == "":
+        return ""
+    raw = raw.replace(" ", "")
+    if "," in raw and "." in raw:
+        raw = raw.replace(",", "")
+    elif "," in raw:
+        raw = raw.replace(",", ".")
+    return raw
 
 
 def normalize_vdv_form(form):
@@ -33,11 +46,14 @@ def normalize_vdv_form(form):
 
 
 def _parse_int_field(value, default, minimum=None, maximum=None):
-    raw = (str(value).strip() if value is not None else "")
+    raw = _normalize_numeric_text(value)
     if raw == "":
         number = default
     else:
-        number = int(raw)
+        decimal_value = Decimal(raw)
+        if decimal_value != decimal_value.to_integral_value():
+            raise ValueError("number must be an integer")
+        number = int(decimal_value)
     if minimum is not None and number < minimum:
         number = minimum
     if maximum is not None and number > maximum:
@@ -49,7 +65,7 @@ def _parse_money_field(value):
     return _parse_int_field(value, 0, minimum=0)
 
 
-def normalize_tournament_form(form):
+def _normalize_tournament_form_legacy(form):
     errors = []
     ten_giai_dau = (form.get("ten_giai_dau") or "").strip()
     dia_diem = (form.get("dia_diem") or "").strip()
@@ -103,6 +119,64 @@ def normalize_tournament_form(form):
         **numeric_fields,
     }
     return data, errors
+
+
+def normalize_tournament_form_v2(form):
+    errors = []
+    ten_giai_dau = (form.get("ten_giai_dau") or "").strip()
+    dia_diem = (form.get("dia_diem") or "").strip()
+    thoi_gian_bat_dau = (form.get("thoi_gian_bat_dau") or "").strip() or None
+    loai_dau = (form.get("loai_dau") or "don").strip()
+
+    if not ten_giai_dau:
+        errors.append("Tên giải không được để trống.")
+    if loai_dau not in VALID_LOAI_DAU:
+        errors.append("Hình thức thi đấu không hợp lệ.")
+        loai_dau = "don"
+
+    numeric_specs = {
+        "so_luong_san": (form.get("so_luong_san"), 1, 1, None),
+        "so_nguoi_du_kien": (form.get("so_nguoi_du_kien"), 10, 1, None),
+        "diem_cham": (form.get("diem_cham"), 11, 1, 99),
+        "diem_toi_da": (form.get("diem_toi_da"), 15, 1, 99),
+        "chi_phi_san_bai": (form.get("chi_phi_san_bai"), 0, 0, None),
+        "chi_phi_nuoc_noi": (form.get("chi_phi_nuoc_noi"), 0, 0, None),
+        "chi_phi_giai_thuong": (form.get("chi_phi_giai_thuong"), 0, 0, None),
+        "chi_phi_khac": (form.get("chi_phi_khac"), 0, 0, None),
+        "ty_le_giai_1": (form.get("ty_le_giai_1"), 0, 0, None),
+        "ty_le_giai_2": (form.get("ty_le_giai_2"), 0, 0, None),
+        "ty_le_giai_3": (form.get("ty_le_giai_3"), 0, 0, None),
+    }
+    numeric_fields = {}
+    has_bad_number = False
+    for field_name, (raw_value, default, minimum, maximum) in numeric_specs.items():
+        try:
+            numeric_fields[field_name] = _parse_int_field(raw_value, default, minimum=minimum, maximum=maximum)
+        except (InvalidOperation, ValueError):
+            has_bad_number = True
+            numeric_fields[field_name] = raw_value if raw_value not in (None, "") else default
+
+    if has_bad_number:
+        errors.append("Các trường số chỉ được nhập số hợp lệ.")
+
+    if (
+        isinstance(numeric_fields["diem_toi_da"], int)
+        and isinstance(numeric_fields["diem_cham"], int)
+        and numeric_fields["diem_toi_da"] < numeric_fields["diem_cham"]
+    ):
+        errors.append("Max điểm phải lớn hơn hoặc bằng điểm chạm.")
+        numeric_fields["diem_toi_da"] = numeric_fields["diem_cham"]
+
+    return {
+        "ten_giai_dau": ten_giai_dau,
+        "dia_diem": dia_diem,
+        "thoi_gian_bat_dau": thoi_gian_bat_dau,
+        "loai_dau": loai_dau,
+        **numeric_fields,
+    }, errors
+
+
+normalize_tournament_form = normalize_tournament_form_v2
 
 
 def normalize_team_form(form):
