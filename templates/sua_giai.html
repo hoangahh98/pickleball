@@ -253,7 +253,7 @@
             quarterBox.disabled = quarterBox.disabled || !semiBox.checked;
             if (quarterBox.disabled) quarterBox.checked = false;
             if (constraintHint) {
-                constraintHint.textContent = `Hiện có khoảng ${estimatedTeams} đội. Chung kết cần 4 đội, bán kết cần 8 đội, tứ kết cần 16 đội.`;
+                constraintHint.textContent = `Hiện có khoảng ${estimatedTeams} đội. Chung kết cần ít nhất 4 đội, bán kết cần ít nhất 8 đội, tứ kết cần ít nhất 16 đội.`;
             }
             hidden.value = quarterBox.checked ? '8' : (semiBox.checked ? '4' : (finalBox.checked ? '2' : '2'));
         }

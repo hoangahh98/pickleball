@@ -580,13 +580,15 @@ def _seed_knockout_from_group_rankings(grouped, total_qualifiers):
         seeds = [ranking[0]['ten'] for _, ranking in ranked_groups if ranking]
         return seeds[:2]
 
-    group_count = max(1, len(ranked_groups))
-    base_slots = max(1, total_qualifiers // group_count)
-    extra_slots = total_qualifiers % group_count
-    selected_groups = []
-    for index, (group_name, ranking) in enumerate(ranked_groups):
-        slots = base_slots + (1 if index < extra_slots else 0)
-        selected_groups.append((group_name, ranking[:slots]))
+    selected_groups = [(group_name, ranking[:2]) for group_name, ranking in ranked_groups]
+    if sum(len(ranking) for _, ranking in selected_groups) < total_qualifiers:
+        selected_groups = []
+        group_count = max(1, len(ranked_groups))
+        base_slots = max(1, total_qualifiers // group_count)
+        extra_slots = total_qualifiers % group_count
+        for index, (group_name, ranking) in enumerate(ranked_groups):
+            slots = base_slots + (1 if index < extra_slots else 0)
+            selected_groups.append((group_name, ranking[:slots]))
 
     seeded = []
     for index in range(0, len(selected_groups), 2):

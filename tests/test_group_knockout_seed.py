@@ -88,6 +88,38 @@ class GroupKnockoutSeedTest(unittest.TestCase):
             ],
         )
 
+    def test_prefers_top_two_per_group_when_enough_groups_exist(self):
+        grouped = {
+            "A": [
+                done_match("Nhat A", "Nhi A", 11, 8, "A"),
+                done_match("Nhat A", "Ba A", 11, 7, "A"),
+                done_match("Nhi A", "Ba A", 11, 9, "A"),
+            ],
+            "B": [
+                done_match("Nhat B", "Nhi B", 11, 8, "B"),
+                done_match("Nhat B", "Ba B", 11, 7, "B"),
+                done_match("Nhi B", "Ba B", 11, 9, "B"),
+            ],
+            "C": [
+                done_match("Nhat C", "Nhi C", 11, 8, "C"),
+                done_match("Nhat C", "Ba C", 11, 7, "C"),
+                done_match("Nhi C", "Ba C", 11, 9, "C"),
+            ],
+            "D": [
+                done_match("Nhat D", "Nhi D", 11, 8, "D"),
+                done_match("Nhat D", "Ba D", 11, 7, "D"),
+                done_match("Nhi D", "Ba D", 11, 9, "D"),
+            ],
+        }
+
+        seeds = _seed_knockout_from_group_rankings(grouped, 8)
+
+        self.assertEqual(len(seeds), 8)
+        self.assertNotIn("Ba A", seeds)
+        self.assertNotIn("Ba B", seeds)
+        self.assertNotIn("Ba C", seeds)
+        self.assertNotIn("Ba D", seeds)
+
 
 if __name__ == "__main__":
     unittest.main()
