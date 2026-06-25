@@ -511,21 +511,8 @@ def _build_group_stage_matches(teams, num_courts, qualifier_count=2, teams_per_g
         group_count = _calculate_group_count(len(teams), qualifier_count)
     else:
         group_count = max(1, int(group_count or 1))
-    if teams_per_group:
-        teams_per_group = max(2, int(teams_per_group or 2))
-        group_count = max(1, min(group_count, max(1, (len(teams) + 1) // 2)))
-        groups = [[] for _ in range(group_count)]
-        team_index = 0
-        for group_index in range(group_count):
-            while team_index < len(teams) and len(groups[group_index]) < teams_per_group:
-                groups[group_index].append(teams[team_index])
-                team_index += 1
-        while team_index < len(teams):
-            target_group = min(range(group_count), key=lambda idx: len(groups[idx]))
-            groups[target_group].append(teams[team_index])
-            team_index += 1
-    else:
-        groups = _chunks_evenly(teams, group_count)
+    group_count = max(1, min(group_count, max(1, (len(teams) + 1) // 2)))
+    groups = _chunks_evenly(teams, group_count)
     grouped_rounds = []
     for group_index, group_teams in enumerate(groups):
         if len(group_teams) < 2:
