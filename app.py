@@ -928,6 +928,11 @@ def chi_tiet_giai_admin(giai_id):
         elif request.args.get('error') == 'prize_over':
             canh_bao = "Tổng tiền thưởng nhập tay không được vượt quá quỹ thưởng thực tế."
 
+        if request.args.get('error') == 'manual_pair':
+            canh_bao = "Ghép đội thủ công không hợp lệ. Mỗi VĐV chỉ được chọn một lần và mỗi đội cần 2 VĐV."
+        elif request.args.get('error') == 'manual_pair_min':
+            canh_bao = "Cần ít nhất 2 đội hợp lệ để tạo lịch thi đấu."
+
         DBLogger.log_request('GET', f'/giai-dau/{giai_id}/admin', user.get('email'))
         permissions = TournamentModel.get_permissions(giai_id)
         permission_admin_ids = {permission[1] for permission in permissions}
@@ -1078,6 +1083,57 @@ def auto_chia_lich(giai_id):
     except Exception as e:
         DBLogger.log_error(f"Error generating schedule: {str(e)}", user.get('email'), f'/giai-dau/{giai_id}/chia-lich', context=traceback.format_exc())
         return f"❌ Error: {str(e)}", 500
+
+@app.route('/giai-dau/<int:giai_id>/ghep-doi-thu-cong', methods=['POST'])
+@admin_required
+def ghep_doi_thu_cong(giai_id):
+    user = session.get('user', {})
+    try:
+        giai_raw = _get_tournament_for_admin_or_403(giai_id, user)
+        if not giai_raw:
+            return "Khong co quyen cap nhat giai dau nay", 403
+
+        loai_dau = giai_raw[15] if len(giai_raw) > 15 and giai_raw[15] else 'don'
+        if loai_dau != 'doi':
+            return redirect(f'/giai-dau/{giai_id}/admin?error=manual_pair')
+
+        registrations = DangKyGiaiModel.get_by_tournament(giai_id)
+        players_by_id = {str(reg[1]): reg[2] for reg in registrations}
+        used_player_ids = set()
+        pairs = []
+
+        for index in range(1, int(request.form.get('pair_count', 0) or 0) + 1):
+            player_a_id = (request.form.get(f'player_a_{index}') or '').strip()
+            player_b_id = (request.form.get(f'player_b_{index}') or '').strip()
+            if not player_a_id and not player_b_id:
+                continue
+            if (
+                not player_a_id or not player_b_id
+                or player_a_id == player_b_id
+                or player_a_id not in players_by_id
+                or player_b_id not in players_by_id
+                or player_a_id in used_player_ids
+                or player_b_id in used_player_ids
+            ):
+                return redirect(f'/giai-dau/{giai_id}/admin?error=manual_pair')
+
+            used_player_ids.add(player_a_id)
+            used_player_ids.add(player_b_id)
+            pairs.append(f"{players_by_id[player_a_id]} + {players_by_id[player_b_id]}")
+
+        if len(pairs) < 2:
+            return redirect(f'/giai-dau/{giai_id}/admin?error=manual_pair_min')
+
+        matches = MatchSchedulerService.generate_round_robin(pairs, giai_raw[2] if giai_raw else 1, 'don')
+        MatchModel.delete_by_tournament(giai_id)
+        MatchModel.save_matches(giai_id, matches)
+
+        DBLogger.log_success(f"Manual teams scheduled: {len(pairs)} teams, {len(matches)} matches", user.get('email'), f'/giai-dau/{giai_id}/ghep-doi-thu-cong')
+        return redirect(f'/giai-dau/{giai_id}/admin')
+    except Exception as e:
+        DBLogger.log_error(f"Manual pairing schedule error: {str(e)}", user.get('email'), f'/giai-dau/{giai_id}/ghep-doi-thu-cong', context=traceback.format_exc())
+        return f"Error: {str(e)}", 500
+
 
 @app.route('/giai-dau/<int:giai_id>/cap-nhat-tien-hang-loat', methods=['POST'])
 @admin_required
