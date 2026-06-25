@@ -101,6 +101,34 @@ class NormalizeTournamentFormTest(unittest.TestCase):
         self.assertEqual(data["so_bang"], 2)
         self.assertEqual(data["so_doi_vao_vong_trong"], 8)
 
+    def test_knockout_stage_checkboxes_set_qualifier_count(self):
+        base_form = {
+            "ten_giai_dau": "Giai bang",
+            "loai_dau": "don",
+            "the_thuc": "bang",
+        }
+
+        data, errors = normalize_tournament_form({**base_form, "knockout_chung_ket": "1"})
+        self.assertEqual(errors, [])
+        self.assertEqual(data["so_doi_vao_vong_trong"], 2)
+
+        data, errors = normalize_tournament_form({
+            **base_form,
+            "knockout_chung_ket": "1",
+            "knockout_ban_ket": "1",
+        })
+        self.assertEqual(errors, [])
+        self.assertEqual(data["so_doi_vao_vong_trong"], 4)
+
+        data, errors = normalize_tournament_form({
+            **base_form,
+            "knockout_chung_ket": "1",
+            "knockout_ban_ket": "1",
+            "knockout_tu_ket": "1",
+        })
+        self.assertEqual(errors, [])
+        self.assertEqual(data["so_doi_vao_vong_trong"], 8)
+
     def test_blank_prize_ratio_defaults_to_zero(self):
         data, errors = normalize_tournament_form({
             "ten_giai_dau": "Giai 1 va 2",

@@ -145,6 +145,15 @@ def normalize_tournament_form_v2(form):
         errors.append("Thể thức thi đấu không hợp lệ.")
         the_thuc = "vong_tron"
 
+    if form.get("knockout_tu_ket"):
+        knockout_qualifiers = 8
+    elif form.get("knockout_ban_ket"):
+        knockout_qualifiers = 4
+    elif form.get("knockout_chung_ket"):
+        knockout_qualifiers = 2
+    else:
+        knockout_qualifiers = None
+
     numeric_specs = {
         "so_luong_san": (form.get("so_luong_san"), 1, 1, None),
         "so_nguoi_du_kien": (form.get("so_nguoi_du_kien"), 10, 1, None),
@@ -159,7 +168,7 @@ def normalize_tournament_form_v2(form):
         "ty_le_giai_3": (form.get("ty_le_giai_3"), 0, 0, None),
         "so_doi_moi_bang": (form.get("so_doi_moi_bang"), 4, 2, None),
         "so_bang": (form.get("so_bang"), 2, 1, None),
-        "so_doi_vao_vong_trong": (form.get("so_doi_vao_vong_trong"), 8, 8, None),
+        "so_doi_vao_vong_trong": (form.get("so_doi_vao_vong_trong"), 2, 2, None),
     }
     numeric_fields = {}
     has_bad_number = False
@@ -180,6 +189,16 @@ def normalize_tournament_form_v2(form):
     ):
         errors.append("Max điểm phải lớn hơn hoặc bằng điểm chạm.")
         numeric_fields["diem_toi_da"] = numeric_fields["diem_cham"]
+
+    if knockout_qualifiers:
+        numeric_fields["so_doi_vao_vong_trong"] = knockout_qualifiers
+    elif isinstance(numeric_fields["so_doi_vao_vong_trong"], int):
+        if numeric_fields["so_doi_vao_vong_trong"] >= 8:
+            numeric_fields["so_doi_vao_vong_trong"] = 8
+        elif numeric_fields["so_doi_vao_vong_trong"] >= 4:
+            numeric_fields["so_doi_vao_vong_trong"] = 4
+        else:
+            numeric_fields["so_doi_vao_vong_trong"] = 2
 
     return {
         "ten_giai_dau": ten_giai_dau,

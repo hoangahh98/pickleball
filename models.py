@@ -646,6 +646,18 @@ class MatchModel:
                       m.get('san', 1), m.get('vong', 1), m.get('giai_doan', 'vong_tron'), m.get('bang')))
     
     @staticmethod
+    def update_match_teams(updates):
+        """Update seeded teams for existing knockout placeholder matches."""
+        with db_cursor(commit=True) as cursor:
+            for tran_id, doi_a, doi_b in updates:
+                cursor.execute("""
+                    UPDATE tran_dau
+                    SET doi_a=%s, doi_b=%s, diem_doi_a=NULL, diem_doi_b=NULL,
+                        thu_tu_danh=2, doi_dang_giao='A', trang_thai=%s
+                    WHERE id=%s;
+                """, (doi_a, doi_b, 'Chưa diễn ra', tran_id))
+
+    @staticmethod
     def update_score(tran_id, diem_a, diem_b, thu_tu_danh=2, doi_dang_giao='A'):
         """Update match score"""
         with db_cursor(commit=True) as cursor:

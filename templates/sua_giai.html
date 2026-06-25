@@ -102,24 +102,34 @@
                                     <label class="btn btn-outline-primary" for="theThucBang">Đánh bảng + Knockout</label>
                                 </div>
                             </div>
-                            <div class="row g-2">
+                            {% set knockout_teams = giai[25] if giai|length > 25 and giai[25] else 2 %}
+                            <input type="hidden" name="so_doi_moi_bang" value="{{ giai[23] if giai|length > 23 and giai[23] else 4 }}">
+                            <input type="hidden" name="so_bang" value="{{ giai[24] if giai|length > 24 and giai[24] else 2 }}">
+                            <input type="hidden" name="so_doi_vao_vong_trong" id="soDoiVaoVongTrong" value="{{ knockout_teams }}">
+                            <div class="row g-2" id="knockoutStageOptions">
                                 <div class="col-md-4">
-                                    <label class="form-label">Đội / bảng</label>
-                                    <input type="number" name="so_doi_moi_bang" class="form-control" min="2"
-                                           value="{{ giai[23] if giai|length > 23 and giai[23] else 4 }}">
+                                    <div class="form-check border rounded bg-white p-3 h-100">
+                                        <input class="form-check-input ms-0 me-2" type="checkbox" name="knockout_chung_ket" value="1" id="knockoutChungKet" {% if knockout_teams >= 2 %}checked{% endif %}>
+                                        <label class="form-check-label fw-semibold" for="knockoutChungKet">Chung kết</label>
+                                        <div class="small text-muted">Lấy 2 đội đầu bảng</div>
+                                    </div>
                                 </div>
                                 <div class="col-md-4">
-                                    <label class="form-label">Số bảng</label>
-                                    <input type="number" name="so_bang" class="form-control" min="1"
-                                           value="{{ giai[24] if giai|length > 24 and giai[24] else 2 }}">
+                                    <div class="form-check border rounded bg-white p-3 h-100">
+                                        <input class="form-check-input ms-0 me-2" type="checkbox" name="knockout_ban_ket" value="1" id="knockoutBanKet" {% if knockout_teams >= 4 %}checked{% endif %}>
+                                        <label class="form-check-label fw-semibold" for="knockoutBanKet">Bán kết</label>
+                                        <div class="small text-muted">Lấy 4 đội vào vòng trong</div>
+                                    </div>
                                 </div>
                                 <div class="col-md-4">
-                                    <label class="form-label">Đội vào vòng trong</label>
-                                    <input type="number" name="so_doi_vao_vong_trong" class="form-control" min="8"
-                                           value="{{ giai[25] if giai|length > 25 and giai[25] else 8 }}">
+                                    <div class="form-check border rounded bg-white p-3 h-100">
+                                        <input class="form-check-input ms-0 me-2" type="checkbox" name="knockout_tu_ket" value="1" id="knockoutTuKet" {% if knockout_teams >= 8 %}checked{% endif %}>
+                                        <label class="form-check-label fw-semibold" for="knockoutTuKet">Tứ kết</label>
+                                        <div class="small text-muted">Lấy 8 đội vào vòng trong</div>
+                                    </div>
                                 </div>
                             </div>
-                            <div class="form-text">Đánh bảng cần tối thiểu 8 đội vào vòng trong để sinh tứ kết, bán kết và chung kết.</div>
+                            <div class="form-text">Hệ thống tự chia bảng theo số đội thực tế và rải sân theo từng lượt đấu.</div>
                         </div>
                     </div>
 
@@ -186,6 +196,26 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+    (() => {
+        const finalBox = document.getElementById('knockoutChungKet');
+        const semiBox = document.getElementById('knockoutBanKet');
+        const quarterBox = document.getElementById('knockoutTuKet');
+        const hidden = document.getElementById('soDoiVaoVongTrong');
+        if (!finalBox || !semiBox || !quarterBox || !hidden) return;
+
+        function syncKnockoutOptions() {
+            semiBox.disabled = !finalBox.checked;
+            if (semiBox.disabled) semiBox.checked = false;
+            quarterBox.disabled = !semiBox.checked;
+            if (quarterBox.disabled) quarterBox.checked = false;
+            hidden.value = quarterBox.checked ? '8' : (semiBox.checked ? '4' : (finalBox.checked ? '2' : '2'));
+        }
+
+        [finalBox, semiBox, quarterBox].forEach((box) => box.addEventListener('change', syncKnockoutOptions));
+        syncKnockoutOptions();
+    })();
+    </script>
 {% include '_pwa_register.html' %}
 {% include '_interaction_feedback.html' %}
 </body>

@@ -455,7 +455,8 @@ BTC</textarea>
         <div class="card-hdr dark">
             <span>📅 LỊCH THI ĐẤU</span>
             <div class="d-flex gap-2 flex-wrap">
-            {% set min_schedule_players = 16 if giai.the_thuc == 'bang' and giai.loai_dau == 'doi' else (8 if giai.the_thuc == 'bang' else 4) %}
+            {% set knockout_teams = giai.so_doi_vao_vong_trong if giai.so_doi_vao_vong_trong else 2 %}
+            {% set min_schedule_players = (knockout_teams * 2) if giai.the_thuc == 'bang' and giai.loai_dau == 'doi' else (knockout_teams if giai.the_thuc == 'bang' else 4) %}
             {% if giai.loai_dau == 'doi' and registrations|length >= min_schedule_players %}
             <button class="btn btn-sm btn-info text-white fw-bold" type="button"
                     data-bs-toggle="collapse" data-bs-target="#manualPairingForm">
@@ -540,7 +541,7 @@ BTC</textarea>
                         <div class="col-md-{{ 12 // [san_list|length, 3]|min }}">
                             <div class="border rounded p-2 h-100" style="border-color:#0d6efd44!important;">
                                 <div class="text-center fw-bold small text-primary mb-2">
-                                    {% if tran_san[0].bang %}BẢNG {{ tran_san[0].bang }} · {% endif %}🏟️ SÂN {{ san }}
+                                    {% if tran_san[0].giai_doan == 'bang' and tran_san[0].bang %}BẢNG {{ tran_san[0].bang }} · {% endif %}🏟️ SÂN {{ san }}
                                 </div>
 
                                 {% for tran in tran_san %}

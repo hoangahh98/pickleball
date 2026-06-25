@@ -164,7 +164,7 @@ def _giai_tuple_from_form(giai_id, form_data):
         form_data.get('the_thuc', 'vong_tron'),
         form_data.get('so_doi_moi_bang', 4),
         form_data.get('so_bang', 2),
-        form_data.get('so_doi_vao_vong_trong', 8),
+        form_data.get('so_doi_vao_vong_trong', 2),
     )
 
 
@@ -457,10 +457,57 @@ def _group_label(index):
     return chr(ord('A') + index)
 
 
-def _build_group_stage_matches(teams, num_courts, group_count, teams_per_group=None):
+def _normalize_knockout_qualifiers(value):
+    try:
+        value = int(value or 2)
+    except (TypeError, ValueError):
+        value = 2
+    if value >= 8:
+        return 8
+    if value >= 4:
+        return 4
+    return 2
+
+
+def _calculate_group_count(team_count, qualifier_count):
+    team_count = max(0, int(team_count or 0))
+    qualifier_count = _normalize_knockout_qualifiers(qualifier_count)
+    if team_count < 2:
+        return 1
+    target_groups = (team_count + 3) // 4
+    max_groups = max(1, team_count // 2)
+    return max(1, min(qualifier_count, target_groups, max_groups))
+
+
+def _stage_label(stage):
+    return {
+        'tu_ket': 'TK',
+        'ban_ket': 'BK',
+        'chung_ket': 'CK',
+    }.get(stage, stage)
+
+
+def _knockout_stages(qualifier_count):
+    qualifier_count = _normalize_knockout_qualifiers(qualifier_count)
+    if qualifier_count >= 8:
+        return [('tu_ket', 100, 8), ('ban_ket', 101, 4), ('chung_ket', 102, 2)]
+    if qualifier_count >= 4:
+        return [('ban_ket', 101, 4), ('chung_ket', 102, 2)]
+    return [('chung_ket', 102, 2)]
+
+
+def _placeholder_team(stage, index):
+    return f"Chờ {_stage_label(stage)} {index}"
+
+
+def _winner_placeholder(stage, index):
+    return f"Thắng {_stage_label(stage)} {index}"
+
+
+def _build_group_stage_matches(teams, num_courts, qualifier_count=2, teams_per_group=None):
     matches = []
-    group_count = max(1, int(group_count or 1))
     teams = list(teams)
+    group_count = _calculate_group_count(len(teams), qualifier_count)
     if teams_per_group:
         teams_per_group = max(2, int(teams_per_group or 2))
         groups = [teams[index * teams_per_group:(index + 1) * teams_per_group] for index in range(group_count)]
@@ -469,6 +516,7 @@ def _build_group_stage_matches(teams, num_courts, group_count, teams_per_group=N
             groups[index % group_count].append(team)
     else:
         groups = _chunks_evenly(teams, group_count)
+    grouped_rounds = []
     for group_index, group_teams in enumerate(groups):
         if len(group_teams) < 2:
             continue
@@ -477,7 +525,16 @@ def _build_group_stage_matches(teams, num_courts, group_count, teams_per_group=N
         for match in group_matches:
             match['giai_doan'] = 'bang'
             match['bang'] = group_name
-        matches.extend(group_matches)
+        grouped_rounds.append(group_matches)
+
+    max_round = max([max([match.get('vong', 1) for match in group_matches] or [0]) for group_matches in grouped_rounds] or [0])
+    for round_no in range(1, max_round + 1):
+        court_index = 0
+        for group_matches in grouped_rounds:
+            for match in [item for item in group_matches if item.get('vong', 1) == round_no]:
+                match['san'] = (court_index % max(1, int(num_courts or 1))) + 1
+                court_index += 1
+                matches.append(match)
     return matches
 
 
@@ -485,28 +542,65 @@ def _rank_teams_for_matches(matches):
     return MatchModel.get_bang_xep_hang_by_matches(matches)
 
 
+def _is_done_status(status):
+    return status in ('\u0110\u00e3 xong', 'ÄÃ£ xong', 'Ã„ÂÃƒÂ£ xong')
+
+
 def _get_winner_from_match(match):
     diem_a = match[3] or 0
     diem_b = match[4] or 0
-    if match[5] != 'Đã xong' or diem_a == diem_b:
+    if not _is_done_status(match[5]) or diem_a == diem_b:
         return None
     return match[1] if diem_a > diem_b else match[2]
 
 
-def _build_knockout_matches(teams, giai_doan, vong_dau, num_courts):
+def _build_knockout_matches(teams, giai_doan, vong_dau, num_courts, team_count=None):
     matches = []
-    for index in range(0, len(teams), 2):
-        if index + 1 >= len(teams):
-            break
+    teams = list(teams)
+    team_count = int(team_count or len(teams) or 2)
+    for index in range(0, team_count, 2):
+        doi_a = teams[index] if index < len(teams) else _placeholder_team(giai_doan, index + 1)
+        doi_b = teams[index + 1] if index + 1 < len(teams) else _placeholder_team(giai_doan, index + 2)
         matches.append({
-            'doi_a': teams[index],
-            'doi_b': teams[index + 1],
+            'doi_a': doi_a,
+            'doi_b': doi_b,
             'san': (len(matches) % max(1, int(num_courts or 1))) + 1,
             'vong': vong_dau,
             'giai_doan': giai_doan,
             'bang': None,
         })
     return matches
+
+
+def _build_knockout_skeleton(qualifier_count, num_courts):
+    matches = []
+    stages = _knockout_stages(qualifier_count)
+    for stage_index, (stage, vong_dau, team_count) in enumerate(stages):
+        if stage_index == 0:
+            teams = []
+        else:
+            previous_stage = stages[stage_index - 1][0]
+            teams = [_winner_placeholder(previous_stage, index) for index in range(1, team_count + 1)]
+        matches.extend(_build_knockout_matches(teams, stage, vong_dau, num_courts, team_count))
+    return matches
+
+
+def _replace_stage_teams(giai_id, stage, teams):
+    matches = [
+        match for match in MatchModel.get_all_by_tournament(giai_id)
+        if len(match) > 10 and match[10] == stage
+    ]
+    if not matches:
+        return
+    teams = list(teams)
+    updates = []
+    for index, match in enumerate(matches):
+        team_index = index * 2
+        if team_index + 1 >= len(teams):
+            break
+        updates.append((match[0], teams[team_index], teams[team_index + 1]))
+    if updates:
+        MatchModel.update_match_teams(updates)
 
 
 def _ensure_knockout_progress(giai_id):
@@ -521,6 +615,53 @@ def _ensure_knockout_progress(giai_id):
 
     existing_stages = {match[10] for match in matches if len(match) > 10}
     num_courts = giai_raw[2] or 1
+
+    total_qualifiers = _normalize_knockout_qualifiers(giai_raw[25] if len(giai_raw) > 25 else 2)
+    stages = _knockout_stages(total_qualifiers)
+    if any(stage not in existing_stages for stage, _, _ in stages):
+        skeleton_matches = [
+            match for match in _build_knockout_skeleton(total_qualifiers, num_courts)
+            if match.get('giai_doan') not in existing_stages
+        ]
+        if skeleton_matches:
+            MatchModel.save_matches(giai_id, skeleton_matches)
+        matches = MatchModel.get_all_by_tournament(giai_id)
+
+    if any(not _is_done_status(match[5]) for match in group_matches):
+        return
+
+    grouped = {}
+    for match in group_matches:
+        grouped.setdefault(match[11] or 'A', []).append(match)
+    qualifiers = []
+    group_names = sorted(grouped)
+    base_slots = max(1, total_qualifiers // max(1, len(group_names)))
+    extra_slots = total_qualifiers % max(1, len(group_names))
+    for index, group_name in enumerate(group_names):
+        slots = base_slots + (1 if index < extra_slots else 0)
+        qualifiers.extend([row['ten'] for row in _rank_teams_for_matches(grouped[group_name])[:slots]])
+    qualifiers = qualifiers[:total_qualifiers]
+    if len(qualifiers) >= total_qualifiers:
+        first_stage = stages[0][0]
+        first_stage_matches = [match for match in matches if len(match) > 10 and match[10] == first_stage]
+        if first_stage_matches and all(not _is_done_status(match[5]) for match in first_stage_matches):
+            _replace_stage_teams(giai_id, first_stage, qualifiers)
+            matches = MatchModel.get_all_by_tournament(giai_id)
+
+    for stage_index, (stage, _, team_count) in enumerate(stages[:-1]):
+        stage_matches = [match for match in matches if len(match) > 10 and match[10] == stage]
+        if not stage_matches or any(not _is_done_status(match[5]) for match in stage_matches):
+            return
+        winners = [_get_winner_from_match(match) for match in stage_matches]
+        winners = [winner for winner in winners if winner]
+        if len(winners) < team_count // 2:
+            return
+        next_stage = stages[stage_index + 1][0]
+        next_matches = [match for match in matches if len(match) > 10 and match[10] == next_stage]
+        if next_matches and all(not _is_done_status(match[5]) for match in next_matches):
+            _replace_stage_teams(giai_id, next_stage, winners[:team_count // 2])
+            matches = MatchModel.get_all_by_tournament(giai_id)
+    return
 
     if 'tu_ket' not in existing_stages:
         if any(match[5] != 'Đã xong' for match in group_matches):
@@ -1027,7 +1168,9 @@ def chi_tiet_giai_admin(giai_id):
             top_3_donate = [(p['ten'], p['tien_dong']) for p in sorted_players[:3]]
         giai_detail['top_3_donate'] = top_3_donate
         
-        xep_hang = MatchModel.get_bang_xep_hang_by_matches(matches) if matches else []
+        the_thuc_value = giai_raw[22] if len(giai_raw) > 22 and giai_raw[22] else 'vong_tron'
+        ranking_matches = [m for m in matches if len(m) > 10 and m[10] == 'bang'] if the_thuc_value == 'bang' else matches
+        xep_hang = MatchModel.get_bang_xep_hang_by_matches(ranking_matches) if ranking_matches else []
         giai_detail['bang_xep_hang'] = xep_hang
         giai_detail['matches'] = matches
         giai_detail['registrations'] = registrations
@@ -1036,10 +1179,10 @@ def chi_tiet_giai_admin(giai_id):
         giai_detail['diem_cham'] = int(giai_raw[16] if len(giai_raw) > 16 and giai_raw[16] else 11)
         giai_detail['diem_toi_da'] = int(giai_raw[17] if len(giai_raw) > 17 and giai_raw[17] else 15)
         giai_detail['owner_admin_id'] = giai_raw[21] if len(giai_raw) > 21 else None
-        giai_detail['the_thuc'] = giai_raw[22] if len(giai_raw) > 22 and giai_raw[22] else 'vong_tron'
+        giai_detail['the_thuc'] = the_thuc_value
         giai_detail['so_doi_moi_bang'] = int(giai_raw[23] if len(giai_raw) > 23 and giai_raw[23] else 4)
         giai_detail['so_bang'] = int(giai_raw[24] if len(giai_raw) > 24 and giai_raw[24] else 2)
-        giai_detail['so_doi_vao_vong_trong'] = int(giai_raw[25] if len(giai_raw) > 25 and giai_raw[25] else 8)
+        giai_detail['so_doi_vao_vong_trong'] = int(giai_raw[25] if len(giai_raw) > 25 and giai_raw[25] else 2)
 
         # Build vong_dict: { vong_number: [match_dict, ...] } for the template
         vong_dict = {}
@@ -1217,14 +1360,15 @@ def auto_chia_lich(giai_id):
                 teams = MatchSchedulerService._smart_pair(players)
             else:
                 teams = players
-            if len(teams) < 8:
+            qualifier_count = _normalize_knockout_qualifiers(giai_raw[25] if len(giai_raw) > 25 else 2)
+            if len(teams) < qualifier_count:
                 return redirect(f'/giai-dau/{giai_id}/admin?error=manual_pair_min')
             matches = _build_group_stage_matches(
                 teams,
                 so_san,
-                giai_raw[24] if len(giai_raw) > 24 else 2,
-                giai_raw[23] if len(giai_raw) > 23 else 4,
+                qualifier_count,
             )
+            matches.extend(_build_knockout_skeleton(qualifier_count, so_san))
         else:
             matches = MatchSchedulerService.generate_round_robin(players, so_san, loai_dau)
         MatchModel.save_matches(giai_id, matches)
@@ -1276,15 +1420,16 @@ def ghep_doi_thu_cong(giai_id):
             return redirect(f'/giai-dau/{giai_id}/admin?error=manual_pair_min')
 
         the_thuc = giai_raw[22] if len(giai_raw) > 22 and giai_raw[22] else 'vong_tron'
-        if the_thuc == 'bang' and len(pairs) < 8:
+        qualifier_count = _normalize_knockout_qualifiers(giai_raw[25] if len(giai_raw) > 25 else 2)
+        if the_thuc == 'bang' and len(pairs) < qualifier_count:
             return redirect(f'/giai-dau/{giai_id}/admin?error=manual_pair_min')
         if the_thuc == 'bang':
             matches = _build_group_stage_matches(
                 pairs,
                 giai_raw[2] if giai_raw else 1,
-                giai_raw[24] if len(giai_raw) > 24 else 2,
-                giai_raw[23] if len(giai_raw) > 23 else 4,
+                qualifier_count,
             )
+            matches.extend(_build_knockout_skeleton(qualifier_count, giai_raw[2] if giai_raw else 1))
         else:
             matches = MatchSchedulerService.generate_round_robin(pairs, giai_raw[2] if giai_raw else 1, 'don')
         MatchModel.delete_by_tournament(giai_id)
@@ -1405,7 +1550,8 @@ def cap_nhat_ty_so(tran_id):
         with db_cursor() as cursor:
             cursor.execute("SELECT giai_dau_id FROM tran_dau WHERE id = %s;", (tran_id,))
             giai_id = cursor.fetchone()[0]
-        if not _get_tournament_for_admin_or_403(giai_id, user):
+        giai_raw = _get_tournament_for_admin_or_403(giai_id, user)
+        if not giai_raw:
             return "Khong co quyen cap nhat giai dau nay", 403
         
         before_match_count = len(MatchModel.get_all_by_tournament(giai_id)) if is_fetch_score_update else 0
@@ -1417,7 +1563,7 @@ def cap_nhat_ty_so(tran_id):
             matches = MatchModel.get_all_by_tournament(giai_id)
             return jsonify({
                 'success': True,
-                'reload_required': len(matches) != before_match_count,
+                'reload_required': len(matches) != before_match_count or (len(giai_raw) > 22 and giai_raw[22] == 'bang' and _is_done_status(trang_thai)),
                 'tran_id': tran_id,
                 'giai_id': giai_id,
                 'diem_a': diem_a,
@@ -1425,7 +1571,11 @@ def cap_nhat_ty_so(tran_id):
                 'thu_tu_danh': thu_tu_danh,
                 'doi_dang_giao': doi_dang_giao,
                 'trang_thai': trang_thai,
-                'ranking': MatchModel.get_bang_xep_hang_by_matches(matches),
+                'ranking': MatchModel.get_bang_xep_hang_by_matches(
+                    [m for m in matches if len(m) > 10 and m[10] == 'bang']
+                    if len(giai_raw) > 22 and giai_raw[22] == 'bang'
+                    else matches
+                ),
             })
         return redirect(f'/giai-dau/{giai_id}/admin')
     except Exception as e:
@@ -1448,11 +1598,16 @@ def live_scores_giai_dau(giai_id):
         if not can_view:
             return jsonify({'success': False, 'error': 'Khong co quyen xem giai dau nay'}), 403
 
+        giai_raw = TournamentModel.get_details(giai_id)
         matches = MatchModel.get_all_by_tournament(giai_id)
         return jsonify({
             'success': True,
             'giai_id': giai_id,
-            'ranking': MatchModel.get_bang_xep_hang_by_matches(matches),
+            'ranking': MatchModel.get_bang_xep_hang_by_matches(
+                [m for m in matches if len(m) > 10 and m[10] == 'bang']
+                if giai_raw and len(giai_raw) > 22 and giai_raw[22] == 'bang'
+                else matches
+            ),
             'matches': [
                 {
                     'tran_id': match[0],
@@ -1748,7 +1903,9 @@ def chi_tiet_giai_vdv(giai_id):
         giai_detail = prepare_tournament_detail(giai_raw, registrations)
         
         matches = MatchModel.get_all_by_tournament(giai_id)
-        xep_hang = MatchModel.get_bang_xep_hang_by_matches(matches) if matches else []
+        the_thuc_value = giai_raw[22] if len(giai_raw) > 22 and giai_raw[22] else 'vong_tron'
+        ranking_matches = [m for m in matches if len(m) > 10 and m[10] == 'bang'] if the_thuc_value == 'bang' else matches
+        xep_hang = MatchModel.get_bang_xep_hang_by_matches(ranking_matches) if ranking_matches else []
         
         top_3_donate = []
         if giai_detail.get('nguoi_choi_list'):
@@ -1778,10 +1935,10 @@ def chi_tiet_giai_vdv(giai_id):
         giai_detail['vong_dict'] = vong_dict
 
         giai_detail['loai_dau'] = giai_raw[15] if len(giai_raw) > 15 and giai_raw[15] else 'don'
-        giai_detail['the_thuc'] = giai_raw[22] if len(giai_raw) > 22 and giai_raw[22] else 'vong_tron'
+        giai_detail['the_thuc'] = the_thuc_value
         giai_detail['so_doi_moi_bang'] = int(giai_raw[23] if len(giai_raw) > 23 and giai_raw[23] else 4)
         giai_detail['so_bang'] = int(giai_raw[24] if len(giai_raw) > 24 and giai_raw[24] else 2)
-        giai_detail['so_doi_vao_vong_trong'] = int(giai_raw[25] if len(giai_raw) > 25 and giai_raw[25] else 8)
+        giai_detail['so_doi_vao_vong_trong'] = int(giai_raw[25] if len(giai_raw) > 25 and giai_raw[25] else 2)
         
         DBLogger.log_request('GET', f'/giai-dau/{giai_id}/vdv', user.get('email'))
         return render_template('chi_tiet_giai_vdv.html', giai=giai_detail, registrations=registrations, enumerate=enumerate)
