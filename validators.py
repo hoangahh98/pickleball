@@ -5,6 +5,7 @@ from decimal import Decimal, InvalidOperation
 VALID_TRINH_DO = {"A", "B", "C", "D"}
 VALID_LOAI_DAU = {"don", "doi"}
 VALID_THE_THUC = {"vong_tron", "bang"}
+KNOCKOUT_STAGE_REQUIREMENTS = {2: 4, 4: 8, 8: 16}
 VALID_LOAI_THANH_VIEN = {"co_dinh", "vang_lai"}
 EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
@@ -60,6 +61,14 @@ def _parse_int_field(value, default, minimum=None, maximum=None):
     if maximum is not None and number > maximum:
         number = maximum
     return number
+
+
+def _estimated_team_count(loai_dau, so_nguoi_du_kien):
+    if not isinstance(so_nguoi_du_kien, int):
+        return 0
+    if loai_dau == "doi":
+        return so_nguoi_du_kien // 2
+    return so_nguoi_du_kien
 
 
 def _parse_money_field(value):
@@ -199,6 +208,15 @@ def normalize_tournament_form_v2(form):
             numeric_fields["so_doi_vao_vong_trong"] = 4
         else:
             numeric_fields["so_doi_vao_vong_trong"] = 2
+
+    if the_thuc == "bang" and isinstance(numeric_fields["so_doi_vao_vong_trong"], int):
+        estimated_teams = _estimated_team_count(loai_dau, numeric_fields["so_nguoi_du_kien"])
+        required_teams = KNOCKOUT_STAGE_REQUIREMENTS.get(numeric_fields["so_doi_vao_vong_trong"], 4)
+        if estimated_teams < required_teams:
+            errors.append(
+                f"Vòng trong đã chọn cần ít nhất {required_teams} đội. "
+                f"Hiện số người dự kiến chỉ tương đương {estimated_teams} đội."
+            )
 
     return {
         "ten_giai_dau": ten_giai_dau,

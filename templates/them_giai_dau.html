@@ -56,10 +56,12 @@
                     <div class="mb-3">
                         <label class="form-label"><strong>🎮 Hình Thức Thi Đấu</strong></label>
                         <div class="btn-group w-100" role="group">
-                            <input type="radio" class="btn-check" name="loai_dau" value="don" id="don" checked>
+                            <input type="radio" class="btn-check" name="loai_dau" value="don" id="don"
+                                   {% if not form_data or form_data.get('loai_dau', 'don') == 'don' %}checked{% endif %}>
                             <label class="btn btn-outline-primary" for="don">👤 Thi Đơn (1v1)</label>
                             
-                            <input type="radio" class="btn-check" name="loai_dau" value="doi" id="doi">
+                            <input type="radio" class="btn-check" name="loai_dau" value="doi" id="doi"
+                                   {% if form_data and form_data.get('loai_dau') == 'doi' %}checked{% endif %}>
                             <label class="btn btn-outline-primary" for="doi">👥 Thi Đôi (2v2)</label>
                         </div>
                     </div>
@@ -96,27 +98,28 @@
                             <div class="row g-2" id="knockoutStageOptions">
                                 <div class="col-md-4">
                                     <div class="form-check border rounded bg-white p-3 h-100">
-                                        <input class="form-check-input ms-0 me-2" type="checkbox" name="knockout_chung_ket" value="1" id="knockoutChungKet" {% if knockout_teams >= 2 %}checked{% endif %}>
+                                        <input class="form-check-input ms-0 me-2" type="checkbox" name="knockout_chung_ket" value="1" id="knockoutChungKet" data-min-teams="4" {% if knockout_teams >= 2 %}checked{% endif %}>
                                         <label class="form-check-label fw-semibold" for="knockoutChungKet">Chung kết</label>
                                         <div class="small text-muted">Lấy 2 đội đầu bảng</div>
                                     </div>
                                 </div>
                                 <div class="col-md-4">
                                     <div class="form-check border rounded bg-white p-3 h-100">
-                                        <input class="form-check-input ms-0 me-2" type="checkbox" name="knockout_ban_ket" value="1" id="knockoutBanKet" {% if knockout_teams >= 4 %}checked{% endif %}>
+                                        <input class="form-check-input ms-0 me-2" type="checkbox" name="knockout_ban_ket" value="1" id="knockoutBanKet" data-min-teams="8" {% if knockout_teams >= 4 %}checked{% endif %}>
                                         <label class="form-check-label fw-semibold" for="knockoutBanKet">Bán kết</label>
                                         <div class="small text-muted">Lấy 4 đội vào vòng trong</div>
                                     </div>
                                 </div>
                                 <div class="col-md-4">
                                     <div class="form-check border rounded bg-white p-3 h-100">
-                                        <input class="form-check-input ms-0 me-2" type="checkbox" name="knockout_tu_ket" value="1" id="knockoutTuKet" {% if knockout_teams >= 8 %}checked{% endif %}>
+                                        <input class="form-check-input ms-0 me-2" type="checkbox" name="knockout_tu_ket" value="1" id="knockoutTuKet" data-min-teams="16" {% if knockout_teams >= 8 %}checked{% endif %}>
                                         <label class="form-check-label fw-semibold" for="knockoutTuKet">Tứ kết</label>
                                         <div class="small text-muted">Lấy 8 đội vào vòng trong</div>
                                     </div>
                                 </div>
                             </div>
                             <div class="form-text">Hệ thống dùng cấu hình bảng ở trên, tự phân bổ phần dư và rải sân theo từng lượt đấu.</div>
+                            <div id="knockoutConstraintHint" class="form-text text-danger fw-semibold"></div>
                             </div>
                         </div>
                     </div>
@@ -193,10 +196,20 @@
         const knockoutConfig = document.getElementById('knockoutConfig');
         const roundRobinRadio = document.getElementById('theThucVongTron');
         const groupRadio = document.getElementById('theThucBang');
+        const playerCountInput = document.querySelector('input[name="so_nguoi_du_kien"]');
+        const singleRadio = document.querySelector('input[name="loai_dau"][value="don"]');
+        const doubleRadio = document.querySelector('input[name="loai_dau"][value="doi"]');
+        const constraintHint = document.getElementById('knockoutConstraintHint');
         if (!finalBox || !semiBox || !quarterBox || !hidden) return;
+
+        function getEstimatedTeams() {
+            const expectedPlayers = Number.parseInt(playerCountInput?.value || '0', 10) || 0;
+            return doubleRadio?.checked ? Math.floor(expectedPlayers / 2) : expectedPlayers;
+        }
 
         function syncKnockoutOptions() {
             const isGroupFormat = !groupRadio || groupRadio.checked;
+            const estimatedTeams = getEstimatedTeams();
             if (knockoutConfig) {
                 knockoutConfig.classList.toggle('d-none', !isGroupFormat);
                 knockoutConfig.querySelectorAll('input').forEach((input) => {
@@ -208,15 +221,25 @@
                 hidden.value = '2';
                 return;
             }
-            semiBox.disabled = !finalBox.checked;
+            [finalBox, semiBox, quarterBox].forEach((box) => {
+                const enoughTeams = estimatedTeams >= (Number.parseInt(box.dataset.minTeams, 10) || 0);
+                box.disabled = !enoughTeams;
+                if (!enoughTeams) box.checked = false;
+            });
+            semiBox.disabled = semiBox.disabled || !finalBox.checked;
             if (semiBox.disabled) semiBox.checked = false;
-            quarterBox.disabled = !semiBox.checked;
+            quarterBox.disabled = quarterBox.disabled || !semiBox.checked;
             if (quarterBox.disabled) quarterBox.checked = false;
+            if (constraintHint) {
+                constraintHint.textContent = `Hiện có khoảng ${estimatedTeams} đội. Chung kết cần 4 đội, bán kết cần 8 đội, tứ kết cần 16 đội.`;
+            }
             hidden.value = quarterBox.checked ? '8' : (semiBox.checked ? '4' : (finalBox.checked ? '2' : '2'));
         }
 
         [finalBox, semiBox, quarterBox].forEach((box) => box.addEventListener('change', syncKnockoutOptions));
         [roundRobinRadio, groupRadio].forEach((radio) => radio && radio.addEventListener('change', syncKnockoutOptions));
+        [singleRadio, doubleRadio, playerCountInput].forEach((input) => input && input.addEventListener('input', syncKnockoutOptions));
+        [singleRadio, doubleRadio, playerCountInput].forEach((input) => input && input.addEventListener('change', syncKnockoutOptions));
         syncKnockoutOptions();
     })();
     </script>

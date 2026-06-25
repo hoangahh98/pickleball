@@ -90,6 +90,7 @@ class NormalizeTournamentFormTest(unittest.TestCase):
             "ten_giai_dau": "Giai bang",
             "loai_dau": "doi",
             "the_thuc": "bang",
+            "so_nguoi_du_kien": "32",
             "so_doi_moi_bang": "4",
             "so_bang": "2",
             "so_doi_vao_vong_trong": "8",
@@ -106,6 +107,7 @@ class NormalizeTournamentFormTest(unittest.TestCase):
             "ten_giai_dau": "Giai bang",
             "loai_dau": "don",
             "the_thuc": "bang",
+            "so_nguoi_du_kien": "16",
         }
 
         data, errors = normalize_tournament_form({**base_form, "knockout_chung_ket": "1"})
@@ -128,6 +130,18 @@ class NormalizeTournamentFormTest(unittest.TestCase):
         })
         self.assertEqual(errors, [])
         self.assertEqual(data["so_doi_vao_vong_trong"], 8)
+
+    def test_knockout_stage_requires_enough_estimated_teams(self):
+        data, errors = normalize_tournament_form({
+            "ten_giai_dau": "Giai it doi",
+            "loai_dau": "doi",
+            "the_thuc": "bang",
+            "so_nguoi_du_kien": "20",
+            "knockout_tu_ket": "1",
+        })
+
+        self.assertEqual(data["so_doi_vao_vong_trong"], 8)
+        self.assertTrue(any("ít nhất 16 đội" in error for error in errors))
 
     def test_blank_prize_ratio_defaults_to_zero(self):
         data, errors = normalize_tournament_form({
