@@ -552,6 +552,22 @@ def _rank_teams_for_matches(matches):
     return MatchModel.get_bang_xep_hang_by_matches(matches)
 
 
+def _build_group_team_list(matches):
+    groups = {}
+    for match in matches:
+        if len(match) <= 11 or match[10] != 'bang' or not match[11]:
+            continue
+        group_name = match[11]
+        groups.setdefault(group_name, [])
+        for team_name in (match[1], match[2]):
+            if team_name and team_name not in groups[group_name]:
+                groups[group_name].append(team_name)
+    return [
+        {"ten_bang": group_name, "doi_list": teams}
+        for group_name, teams in sorted(groups.items())
+    ]
+
+
 def _is_done_status(status):
     return status in ('\u0110\u00e3 xong', 'ÄÃ£ xong', 'Ã„ÂÃƒÂ£ xong')
 
@@ -1210,6 +1226,7 @@ def chi_tiet_giai_admin(giai_id):
                 "bang": m[11] if len(m) > 11 else None
             })
         giai_detail['vong_dict'] = vong_dict
+        giai_detail['bang_dau_list'] = _build_group_team_list(matches)
         
         canh_bao = None
         if request.args.get('error') == 'full':
@@ -1947,6 +1964,7 @@ def chi_tiet_giai_vdv(giai_id):
                 "bang": m[11] if len(m) > 11 else None
             })
         giai_detail['vong_dict'] = vong_dict
+        giai_detail['bang_dau_list'] = _build_group_team_list(matches)
 
         giai_detail['loai_dau'] = giai_raw[15] if len(giai_raw) > 15 and giai_raw[15] else 'don'
         giai_detail['the_thuc'] = the_thuc_value

@@ -32,6 +32,12 @@
         .match-grid { display: grid; grid-template-columns: 1fr auto 1fr;
                       align-items: center; gap: 8px; }
         .score-section { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+        .match-meta { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 6px; }
+        .match-meta .badge { font-size: .68rem; letter-spacing: 0; }
+        .group-board { border: 1px solid #19875455; border-radius: 8px; overflow: hidden; background: #fff; }
+        .group-board-title { background: #d1f2dc; color: #0f5132; font-weight: 800; text-align: center; padding: 6px 8px; border-bottom: 1px solid #19875455; }
+        .group-team-row { padding: 6px 10px; border-bottom: 1px solid #e9ecef; font-size: .86rem; font-weight: 600; }
+        .group-team-row:last-child { border-bottom: 0; }
 
         /* ── BXH ──────────────────────────────── */
         .rank-1 { background: #fff8dc; }
@@ -219,11 +225,31 @@
         <div class="card-hdr dark">📅 LỊCH THI ĐẤU</div>
         <div class="card-body p-3">
             {% if giai.vong_dict %}
+                {% if giai.the_thuc == 'bang' and giai.bang_dau_list %}
+                <div class="mb-4">
+                    <div class="vong-header rounded px-3 py-2 mb-3 fw-bold text-success">
+                        📋 DANH SÁCH BẢNG ĐẤU
+                    </div>
+                    <div class="row g-3">
+                    {% for bang in giai.bang_dau_list %}
+                        <div class="col-md-6 col-xl-3">
+                            <div class="group-board h-100">
+                                <div class="group-board-title">Bảng {{ bang.ten_bang }}</div>
+                                {% for doi in bang.doi_list %}
+                                <div class="group-team-row">{{ doi }}</div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+
                 {% for vong_so, tran_list in giai.vong_dict.items() %}
                 <div class="mb-4">
                     <!-- Vòng header -->
                     <div class="vong-header rounded px-3 py-2 mb-3 fw-bold text-primary">
-                        {% if vong_so == 100 %}🏆 TỨ KẾT{% elif vong_so == 101 %}🏆 BÁN KẾT{% elif vong_so == 102 %}🏆 CHUNG KẾT{% else %}🔄 VÒNG {{ vong_so }}{% endif %} — {{ tran_list|length }} trận
+                        {% if vong_so == 100 %}🏆 TỨ KẾT{% elif vong_so == 101 %}🏆 BÁN KẾT{% elif vong_so == 102 %}🏆 CHUNG KẾT{% elif giai.the_thuc == 'bang' %}🔄 LƯỢT {{ vong_so }}{% else %}🔄 VÒNG {{ vong_so }}{% endif %} — {{ tran_list|length }} trận
                         <small class="text-muted fw-normal ms-2">
                             ({{ tran_list|selectattr('trang_thai','equalto','Đã xong')|list|length }} đã xong)
                         </small>
@@ -237,7 +263,7 @@
                         <div class="col-md-{{ 12 // [san_list|length, 3]|min }}">
                             <div class="border rounded p-2 h-100" style="border-color:#0d6efd44!important;">
                                 <div class="text-center fw-bold small text-primary mb-2">
-                                    {% if tran_san[0].bang %}BẢNG {{ tran_san[0].bang }} · {% endif %}🏟️ SÂN {{ san }}
+                                    {% if tran_san[0].giai_doan == 'bang' and tran_san[0].bang %}BẢNG {{ tran_san[0].bang }} · {% endif %}🏟️ SÂN {{ san }}
                                 </div>
                                 {% for tran in tran_san %}
                                 <div class="tran-card rounded p-2 mb-2 {{ 'da-xong' if tran.trang_thai == 'Đã xong' else '' }}"
@@ -246,6 +272,21 @@
                                      data-score-b="{{ tran.diem_b if tran.diem_b is not none else '' }}"
                                      data-order="{{ tran.thu_tu_danh or 2 }}"
                                      data-serving-team="{{ tran.doi_dang_giao or 'A' }}">
+                                    <div class="match-meta">
+                                        {% if tran.giai_doan == 'bang' %}
+                                            <span class="badge bg-success">Lượt {{ vong_so }}</span>
+                                            <span class="badge bg-info text-dark">Bảng {{ tran.bang }}</span>
+                                        {% elif tran.giai_doan == 'tu_ket' %}
+                                            <span class="badge bg-danger">Tứ kết</span>
+                                        {% elif tran.giai_doan == 'ban_ket' %}
+                                            <span class="badge bg-danger">Bán kết</span>
+                                        {% elif tran.giai_doan == 'chung_ket' %}
+                                            <span class="badge bg-danger">Chung kết</span>
+                                        {% else %}
+                                            <span class="badge bg-primary">Vòng {{ vong_so }}</span>
+                                        {% endif %}
+                                        <span class="badge bg-secondary">Sân {{ tran.san }}</span>
+                                    </div>
                                     <div class="match-grid">
                                         <div class="team-name">
                                             {% for p in tran.doi_a.split(' + ') %}<span>{{ p }}</span>{% endfor %}
