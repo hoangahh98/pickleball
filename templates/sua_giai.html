@@ -104,6 +104,7 @@
                             </div>
                             {% set knockout_teams = giai[25] if giai|length > 25 and giai[25] else 2 %}
                             <input type="hidden" name="so_doi_vao_vong_trong" id="soDoiVaoVongTrong" value="{{ knockout_teams }}">
+                            <div id="knockoutConfig">
                             <div class="row g-2 mb-2">
                                 <div class="col-md-6">
                                     <label class="form-label">Đội / bảng</label>
@@ -140,6 +141,7 @@
                                 </div>
                             </div>
                             <div class="form-text">Hệ thống dùng cấu hình bảng ở trên, tự phân bổ phần dư và rải sân theo từng lượt đấu.</div>
+                            </div>
                         </div>
                     </div>
 
@@ -212,9 +214,24 @@
         const semiBox = document.getElementById('knockoutBanKet');
         const quarterBox = document.getElementById('knockoutTuKet');
         const hidden = document.getElementById('soDoiVaoVongTrong');
+        const knockoutConfig = document.getElementById('knockoutConfig');
+        const roundRobinRadio = document.getElementById('theThucVongTron');
+        const groupRadio = document.getElementById('theThucBang');
         if (!finalBox || !semiBox || !quarterBox || !hidden) return;
 
         function syncKnockoutOptions() {
+            const isGroupFormat = !groupRadio || groupRadio.checked;
+            if (knockoutConfig) {
+                knockoutConfig.classList.toggle('d-none', !isGroupFormat);
+                knockoutConfig.querySelectorAll('input').forEach((input) => {
+                    input.disabled = !isGroupFormat;
+                });
+            }
+            hidden.disabled = false;
+            if (!isGroupFormat) {
+                hidden.value = '2';
+                return;
+            }
             semiBox.disabled = !finalBox.checked;
             if (semiBox.disabled) semiBox.checked = false;
             quarterBox.disabled = !semiBox.checked;
@@ -223,6 +240,7 @@
         }
 
         [finalBox, semiBox, quarterBox].forEach((box) => box.addEventListener('change', syncKnockoutOptions));
+        [roundRobinRadio, groupRadio].forEach((radio) => radio && radio.addEventListener('change', syncKnockoutOptions));
         syncKnockoutOptions();
     })();
     </script>
