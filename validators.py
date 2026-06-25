@@ -140,6 +140,11 @@ def normalize_tournament_form_v2(form):
         errors.append("Hình thức thi đấu không hợp lệ.")
         loai_dau = "don"
 
+    the_thuc = (form.get("the_thuc") or "vong_tron").strip()
+    if the_thuc not in VALID_THE_THUC:
+        errors.append("Thể thức thi đấu không hợp lệ.")
+        the_thuc = "vong_tron"
+
     numeric_specs = {
         "so_luong_san": (form.get("so_luong_san"), 1, 1, None),
         "so_nguoi_du_kien": (form.get("so_nguoi_du_kien"), 10, 1, None),
@@ -181,6 +186,7 @@ def normalize_tournament_form_v2(form):
         "dia_diem": dia_diem,
         "thoi_gian_bat_dau": thoi_gian_bat_dau,
         "loai_dau": loai_dau,
+        "the_thuc": the_thuc,
         **numeric_fields,
     }, errors
 

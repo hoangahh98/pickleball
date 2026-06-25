@@ -85,6 +85,22 @@ class NormalizeTournamentFormTest(unittest.TestCase):
         self.assertEqual(data["ty_le_giai_2"], 3)
         self.assertEqual(data["ty_le_giai_3"], 0)
 
+    def test_keeps_tournament_format_config(self):
+        data, errors = normalize_tournament_form({
+            "ten_giai_dau": "Giai bang",
+            "loai_dau": "doi",
+            "the_thuc": "bang",
+            "so_doi_moi_bang": "4",
+            "so_bang": "2",
+            "so_doi_vao_vong_trong": "8",
+        })
+
+        self.assertEqual(errors, [])
+        self.assertEqual(data["the_thuc"], "bang")
+        self.assertEqual(data["so_doi_moi_bang"], 4)
+        self.assertEqual(data["so_bang"], 2)
+        self.assertEqual(data["so_doi_vao_vong_trong"], 8)
+
     def test_blank_prize_ratio_defaults_to_zero(self):
         data, errors = normalize_tournament_form({
             "ten_giai_dau": "Giai 1 va 2",
