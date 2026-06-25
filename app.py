@@ -593,28 +593,42 @@ def _seed_knockout_from_group_rankings(grouped, total_qualifiers):
         seeds = [ranking[0]['ten'] for _, ranking in ranked_groups if ranking]
         return seeds[:2]
 
-    matches = []
-    for index in range(0, len(ranked_groups), 2):
-        if index + 1 >= len(ranked_groups):
-            break
-        group_a, ranking_a = ranked_groups[index]
-        group_b, ranking_b = ranked_groups[index + 1]
-        if len(ranking_a) >= 2 and len(ranking_b) >= 2:
-            matches.extend([
-                ranking_a[0]['ten'], ranking_b[1]['ten'],
-                ranking_b[0]['ten'], ranking_a[1]['ten'],
-            ])
+    group_count = max(1, len(ranked_groups))
+    base_slots = max(1, total_qualifiers // group_count)
+    extra_slots = total_qualifiers % group_count
+    selected_groups = []
+    for index, (group_name, ranking) in enumerate(ranked_groups):
+        slots = base_slots + (1 if index < extra_slots else 0)
+        selected_groups.append((group_name, ranking[:slots]))
 
-    if len(matches) < total_qualifiers:
+    seeded = []
+    for index in range(0, len(selected_groups), 2):
+        if index + 1 >= len(selected_groups):
+            break
+        group_a, ranking_a = selected_groups[index]
+        group_b, ranking_b = selected_groups[index + 1]
+        max_slots = max(len(ranking_a), len(ranking_b))
+        for rank_index in range(0, max_slots, 2):
+            if rank_index < len(ranking_a) and rank_index + 1 < len(ranking_b):
+                seeded.extend([ranking_a[rank_index]['ten'], ranking_b[rank_index + 1]['ten']])
+            if rank_index < len(ranking_b) and rank_index + 1 < len(ranking_a):
+                seeded.extend([ranking_b[rank_index]['ten'], ranking_a[rank_index + 1]['ten']])
+            if len(seeded) >= total_qualifiers:
+                return seeded[:total_qualifiers]
+
+    if len(seeded) < total_qualifiers:
         fallback = []
-        for _, ranking in ranked_groups:
-            fallback.extend([row['ten'] for row in ranking[:2]])
+        max_rank = max([len(ranking) for _, ranking in selected_groups] or [0])
+        for rank_index in range(max_rank):
+            for _, ranking in selected_groups:
+                if rank_index < len(ranking):
+                    fallback.append(ranking[rank_index]['ten'])
         for team_name in fallback:
-            if team_name not in matches:
-                matches.append(team_name)
-            if len(matches) >= total_qualifiers:
+            if team_name not in seeded:
+                seeded.append(team_name)
+            if len(seeded) >= total_qualifiers:
                 break
-    return matches[:total_qualifiers]
+    return seeded[:total_qualifiers]
 
 
 def _is_done_status(status):
