@@ -45,9 +45,8 @@
                 <form method="GET" action="{{ '/doi-bong/' ~ doi_bong[0] if can_edit else '/doi-bong/' ~ doi_bong[0] ~ '/vdv' }}" class="d-flex align-items-end gap-2">
                     <div>
                         <label class="form-label small fw-semibold mb-1">Tháng quỹ</label>
-                        <input type="month" name="thang" class="form-control" value="{{ selected_month }}">
+                        <input type="month" name="thang" class="form-control" value="{{ selected_month }}" onchange="this.form.submit()">
                     </div>
-                    <button type="submit" class="btn btn-primary">Chọn</button>
                 </form>
             </div>
         </div>
