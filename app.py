@@ -568,6 +568,21 @@ def _build_group_team_list(matches):
     ]
 
 
+def _build_group_rankings(matches):
+    grouped_matches = {}
+    for match in matches:
+        if len(match) <= 11 or match[10] != 'bang' or not match[11]:
+            continue
+        grouped_matches.setdefault(match[11], []).append(match)
+    return [
+        {
+            "ten_bang": group_name,
+            "xep_hang": MatchModel.get_bang_xep_hang_by_matches(group_matches),
+        }
+        for group_name, group_matches in sorted(grouped_matches.items())
+    ]
+
+
 def _is_done_status(status):
     return status in ('\u0110\u00e3 xong', 'ÄÃ£ xong', 'Ã„ÂÃƒÂ£ xong')
 
@@ -1198,6 +1213,7 @@ def chi_tiet_giai_admin(giai_id):
         ranking_matches = [m for m in matches if len(m) > 10 and m[10] == 'bang'] if the_thuc_value == 'bang' else matches
         xep_hang = MatchModel.get_bang_xep_hang_by_matches(ranking_matches) if ranking_matches else []
         giai_detail['bang_xep_hang'] = xep_hang
+        giai_detail['bang_xep_hang_theo_bang'] = _build_group_rankings(matches) if the_thuc_value == 'bang' else []
         giai_detail['matches'] = matches
         giai_detail['registrations'] = registrations
         giai_detail['all_vdv'] = all_vdv
@@ -1602,10 +1618,10 @@ def cap_nhat_ty_so(tran_id):
                 'thu_tu_danh': thu_tu_danh,
                 'doi_dang_giao': doi_dang_giao,
                 'trang_thai': trang_thai,
-                'ranking': MatchModel.get_bang_xep_hang_by_matches(
-                    [m for m in matches if len(m) > 10 and m[10] == 'bang']
+                'ranking': (
+                    _build_group_rankings(matches)
                     if len(giai_raw) > 22 and giai_raw[22] == 'bang'
-                    else matches
+                    else MatchModel.get_bang_xep_hang_by_matches(matches)
                 ),
             })
         return redirect(f'/giai-dau/{giai_id}/admin')
@@ -1634,10 +1650,10 @@ def live_scores_giai_dau(giai_id):
         return jsonify({
             'success': True,
             'giai_id': giai_id,
-            'ranking': MatchModel.get_bang_xep_hang_by_matches(
-                [m for m in matches if len(m) > 10 and m[10] == 'bang']
+            'ranking': (
+                _build_group_rankings(matches)
                 if giai_raw and len(giai_raw) > 22 and giai_raw[22] == 'bang'
-                else matches
+                else MatchModel.get_bang_xep_hang_by_matches(matches)
             ),
             'matches': [
                 {
@@ -1944,6 +1960,7 @@ def chi_tiet_giai_vdv(giai_id):
             top_3_donate = [(p['ten'], p['tien_dong']) for p in sorted_players[:3]]
         giai_detail['top_3_donate'] = top_3_donate
         giai_detail['bang_xep_hang'] = xep_hang
+        giai_detail['bang_xep_hang_theo_bang'] = _build_group_rankings(matches) if the_thuc_value == 'bang' else []
         giai_detail['matches'] = matches
         giai_detail['registrations'] = registrations
         giai_detail['user_role'] = 'vdv'

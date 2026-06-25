@@ -410,7 +410,43 @@ BTC</textarea>
             <div class="card h-100">
                 <div class="card-hdr green">📊 BẢNG XẾP HẠNG</div>
                 <div id="rankingContainer" class="card-body p-2">
-                    {% if giai.bang_xep_hang %}
+                    {% if giai.the_thuc == 'bang' and giai.bang_xep_hang_theo_bang %}
+                    <div class="row g-2">
+                    {% for bang in giai.bang_xep_hang_theo_bang %}
+                        <div class="col-lg-6">
+                            <div class="border rounded overflow-hidden h-100">
+                                <div class="bg-success-subtle text-success fw-bold text-center py-2">Bảng {{ bang.ten_bang }}</div>
+                                <table class="table table-sm table-hover mb-0 text-center">
+                                    <thead class="table-dark">
+                                        <tr>
+                                            <th style="width:36px">#</th>
+                                            <th class="text-start">Tên</th>
+                                            <th>Trận</th>
+                                            <th class="text-success">W</th>
+                                            <th class="text-danger">L</th>
+                                            <th>Điểm</th>
+                                            <th>Hiệu số</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                    {% for doi in bang.xep_hang %}
+                                    <tr class="{% if loop.index == 1 %}rank-1{% elif loop.index == 2 %}rank-2{% elif loop.index == 3 %}rank-3{% endif %}">
+                                        <td>{% if loop.index == 1 %}🥇{% elif loop.index == 2 %}🥈{% elif loop.index == 3 %}🥉{% else %}{{ loop.index }}{% endif %}</td>
+                                        <td class="text-start fw-bold">{{ doi.ten }}</td>
+                                        <td>{{ doi.so_tran }}</td>
+                                        <td class="text-success fw-bold">{{ doi.thang }}</td>
+                                        <td class="text-danger">{{ doi.thua }}</td>
+                                        <td><span class="badge bg-primary rounded-pill">{{ doi.diem }}</span></td>
+                                        <td class="{{ 'hieu-so-pos' if doi.hieu_so > 0 else 'hieu-so-neg' if doi.hieu_so < 0 else '' }}">{{ "+" if doi.hieu_so > 0 else "" }}{{ doi.hieu_so }}</td>
+                                    </tr>
+                                    {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    {% endfor %}
+                    </div>
+                    {% elif giai.bang_xep_hang %}
                     <table class="table table-sm table-hover mb-0 text-center">
                         <thead class="table-dark">
                             <tr>
@@ -1059,7 +1095,7 @@ function renderRanking(ranking) {
         return;
     }
 
-    const rows = ranking.map((doi, index) => {
+    const renderRows = (items) => items.map((doi, index) => {
         const rank = index + 1;
         const rankLabel = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : rank;
         const rankClass = rank === 1 ? 'rank-1' : rank === 2 ? 'rank-2' : rank === 3 ? 'rank-3' : '';
@@ -1078,7 +1114,7 @@ function renderRanking(ranking) {
         `;
     }).join('');
 
-    container.innerHTML = `
+    const renderTable = (rows) => `
         <table class="table table-sm table-hover mb-0 text-center">
             <thead class="table-dark">
                 <tr>
@@ -1094,6 +1130,24 @@ function renderRanking(ranking) {
             <tbody>${rows}</tbody>
         </table>
     `;
+
+    if (ranking[0] && Array.isArray(ranking[0].xep_hang)) {
+        container.innerHTML = `
+            <div class="row g-2">
+                ${ranking.map((bang) => `
+                    <div class="col-lg-6">
+                        <div class="border rounded overflow-hidden h-100">
+                            <div class="bg-success-subtle text-success fw-bold text-center py-2">Bảng ${escapeHtml(bang.ten_bang)}</div>
+                            ${renderTable(renderRows(bang.xep_hang || []))}
+                        </div>
+                    </div>
+                `).join('')}
+            </div>
+        `;
+        return;
+    }
+
+    container.innerHTML = renderTable(renderRows(ranking));
 }
 
 function openScoreModal(card) {
