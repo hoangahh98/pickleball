@@ -583,6 +583,40 @@ def _build_group_rankings(matches):
     ]
 
 
+def _seed_knockout_from_group_rankings(grouped, total_qualifiers):
+    group_names = sorted(grouped)
+    ranked_groups = [
+        (group_name, _rank_teams_for_matches(grouped[group_name]))
+        for group_name in group_names
+    ]
+    if total_qualifiers <= 2:
+        seeds = [ranking[0]['ten'] for _, ranking in ranked_groups if ranking]
+        return seeds[:2]
+
+    matches = []
+    for index in range(0, len(ranked_groups), 2):
+        if index + 1 >= len(ranked_groups):
+            break
+        group_a, ranking_a = ranked_groups[index]
+        group_b, ranking_b = ranked_groups[index + 1]
+        if len(ranking_a) >= 2 and len(ranking_b) >= 2:
+            matches.extend([
+                ranking_a[0]['ten'], ranking_b[1]['ten'],
+                ranking_b[0]['ten'], ranking_a[1]['ten'],
+            ])
+
+    if len(matches) < total_qualifiers:
+        fallback = []
+        for _, ranking in ranked_groups:
+            fallback.extend([row['ten'] for row in ranking[:2]])
+        for team_name in fallback:
+            if team_name not in matches:
+                matches.append(team_name)
+            if len(matches) >= total_qualifiers:
+                break
+    return matches[:total_qualifiers]
+
+
 def _is_done_status(status):
     return status in ('\u0110\u00e3 xong', 'ÄÃ£ xong', 'Ã„ÂÃƒÂ£ xong')
 
@@ -674,14 +708,7 @@ def _ensure_knockout_progress(giai_id):
     grouped = {}
     for match in group_matches:
         grouped.setdefault(match[11] or 'A', []).append(match)
-    qualifiers = []
-    group_names = sorted(grouped)
-    base_slots = max(1, total_qualifiers // max(1, len(group_names)))
-    extra_slots = total_qualifiers % max(1, len(group_names))
-    for index, group_name in enumerate(group_names):
-        slots = base_slots + (1 if index < extra_slots else 0)
-        qualifiers.extend([row['ten'] for row in _rank_teams_for_matches(grouped[group_name])[:slots]])
-    qualifiers = qualifiers[:total_qualifiers]
+    qualifiers = _seed_knockout_from_group_rankings(grouped, total_qualifiers)
     if len(qualifiers) >= total_qualifiers:
         first_stage = stages[0][0]
         first_stage_matches = [match for match in matches if len(match) > 10 and match[10] == first_stage]
@@ -703,41 +730,6 @@ def _ensure_knockout_progress(giai_id):
             _replace_stage_teams(giai_id, next_stage, winners[:team_count // 2])
             matches = MatchModel.get_all_by_tournament(giai_id)
     return
-
-    if 'tu_ket' not in existing_stages:
-        if any(match[5] != 'Đã xong' for match in group_matches):
-            return
-        grouped = {}
-        for match in group_matches:
-            grouped.setdefault(match[11] or 'A', []).append(match)
-        qualifiers = []
-        total_qualifiers = int(giai_raw[25] if len(giai_raw) > 25 and giai_raw[25] else 8)
-        group_names = sorted(grouped)
-        base_slots = max(1, total_qualifiers // max(1, len(group_names)))
-        extra_slots = total_qualifiers % max(1, len(group_names))
-        for index, group_name in enumerate(group_names):
-            slots = base_slots + (1 if index < extra_slots else 0)
-            qualifiers.extend([row['ten'] for row in _rank_teams_for_matches(grouped[group_name])[:slots]])
-        qualifiers = qualifiers[:8]
-        if len(qualifiers) < 8:
-            return
-        MatchModel.save_matches(giai_id, _build_knockout_matches(qualifiers, 'tu_ket', 100, num_courts))
-        return
-
-    quarter_matches = [match for match in matches if len(match) > 10 and match[10] == 'tu_ket']
-    if 'ban_ket' not in existing_stages and quarter_matches and all(match[5] == 'Đã xong' for match in quarter_matches):
-        winners = [_get_winner_from_match(match) for match in quarter_matches]
-        winners = [winner for winner in winners if winner]
-        if len(winners) >= 4:
-            MatchModel.save_matches(giai_id, _build_knockout_matches(winners[:4], 'ban_ket', 101, num_courts))
-        return
-
-    semi_matches = [match for match in matches if len(match) > 10 and match[10] == 'ban_ket']
-    if 'chung_ket' not in existing_stages and semi_matches and all(match[5] == 'Đã xong' for match in semi_matches):
-        winners = [_get_winner_from_match(match) for match in semi_matches]
-        winners = [winner for winner in winners if winner]
-        if len(winners) >= 2:
-            MatchModel.save_matches(giai_id, _build_knockout_matches(winners[:2], 'chung_ket', 102, num_courts))
 
 
 @app.route('/doi-bong')
