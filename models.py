@@ -151,7 +151,9 @@ class TournamentModel:
                            g.ty_le_giai_1, g.ty_le_giai_2, g.ty_le_giai_3, g.so_nguoi_du_kien,
                            g.thoi_gian_bat_dau, g.banner_image, g.qr_image,
                            COALESCE(g.loai_dau, 'don'), COALESCE(g.diem_cham, 11), COALESCE(g.diem_toi_da, 15),
-                           g.tien_giai_1, g.tien_giai_2, g.tien_giai_3, g.owner_admin_id
+                           g.tien_giai_1, g.tien_giai_2, g.tien_giai_3, g.owner_admin_id,
+                           COALESCE(g.the_thuc, 'vong_tron'), COALESCE(g.so_doi_moi_bang, 4),
+                           COALESCE(g.so_bang, 2), COALESCE(g.so_doi_vao_vong_trong, 8)
                     FROM giai_dau g
                     LEFT JOIN giai_dau_admin_quyen q ON g.id = q.giai_dau_id AND q.admin_id = %s
                     WHERE g.id = %s AND (g.owner_admin_id = %s OR q.admin_id IS NOT NULL);
@@ -163,7 +165,9 @@ class TournamentModel:
                            ty_le_giai_1, ty_le_giai_2, ty_le_giai_3, so_nguoi_du_kien,
                            thoi_gian_bat_dau, banner_image, qr_image,
                            COALESCE(loai_dau, 'don'), COALESCE(diem_cham, 11), COALESCE(diem_toi_da, 15),
-                           tien_giai_1, tien_giai_2, tien_giai_3, owner_admin_id
+                           tien_giai_1, tien_giai_2, tien_giai_3, owner_admin_id,
+                           COALESCE(the_thuc, 'vong_tron'), COALESCE(so_doi_moi_bang, 4),
+                           COALESCE(so_bang, 2), COALESCE(so_doi_vao_vong_trong, 8)
                     FROM giai_dau WHERE id = %s;
                 """, (giai_id,))
             return cursor.fetchone()
@@ -617,9 +621,10 @@ class MatchModel:
         with db_cursor() as cursor:
             cursor.execute("""
                 SELECT id, doi_a, doi_b, diem_doi_a, diem_doi_b, trang_thai, san_so_may, vong_dau,
-                       COALESCE(thu_tu_danh, 2), COALESCE(doi_dang_giao, 'A')
+                       COALESCE(thu_tu_danh, 2), COALESCE(doi_dang_giao, 'A'),
+                       COALESCE(giai_doan, 'vong_tron'), bang_dau
                 FROM tran_dau WHERE giai_dau_id = %s
-                ORDER BY vong_dau ASC, san_so_may ASC, id ASC;
+                ORDER BY vong_dau ASC, bang_dau ASC NULLS LAST, san_so_may ASC, id ASC;
             """, (giai_id,))
             return cursor.fetchall()
     
@@ -635,10 +640,10 @@ class MatchModel:
         with db_cursor(commit=True) as cursor:
             for m in matches:
                 cursor.execute("""
-                    INSERT INTO tran_dau (giai_dau_id, doi_a, doi_b, trang_thai, san_so_may, vong_dau)
-                    VALUES (%s, %s, %s, %s, %s, %s);
+                    INSERT INTO tran_dau (giai_dau_id, doi_a, doi_b, trang_thai, san_so_may, vong_dau, giai_doan, bang_dau)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s);
                 """, (giai_id, m['doi_a'], m['doi_b'], 'Chưa diễn ra',
-                      m.get('san', 1), m.get('vong', 1)))
+                      m.get('san', 1), m.get('vong', 1), m.get('giai_doan', 'vong_tron'), m.get('bang')))
     
     @staticmethod
     def update_score(tran_id, diem_a, diem_b, thu_tu_danh=2, doi_dang_giao='A'):

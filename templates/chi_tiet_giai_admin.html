@@ -455,7 +455,8 @@ BTC</textarea>
         <div class="card-hdr dark">
             <span>📅 LỊCH THI ĐẤU</span>
             <div class="d-flex gap-2 flex-wrap">
-            {% if giai.loai_dau == 'doi' and registrations|length >= 4 %}
+            {% set min_schedule_players = 16 if giai.the_thuc == 'bang' and giai.loai_dau == 'doi' else (8 if giai.the_thuc == 'bang' else 4) %}
+            {% if giai.loai_dau == 'doi' and registrations|length >= min_schedule_players %}
             <button class="btn btn-sm btn-info text-white fw-bold" type="button"
                     data-bs-toggle="collapse" data-bs-target="#manualPairingForm">
                 👥 Ghép đội thủ công
@@ -472,7 +473,7 @@ BTC</textarea>
             </div>
         </div>
         <div class="card-body p-3">
-            {% if giai.loai_dau == 'doi' and registrations|length >= 4 %}
+            {% if giai.loai_dau == 'doi' and registrations|length >= min_schedule_players %}
             <div class="collapse mb-3" id="manualPairingForm">
                 <form action="/giai-dau/{{ giai.id }}/ghep-doi-thu-cong" method="POST"
                       class="border rounded bg-light p-3"
@@ -525,7 +526,7 @@ BTC</textarea>
                 <div class="mb-4">
                     <!-- Vòng header -->
                     <div class="vong-header rounded px-3 py-2 mb-3 fw-bold text-primary">
-                        🔄 VÒNG {{ vong_so }} — {{ tran_list|length }} trận
+                        {% if vong_so == 100 %}🏆 TỨ KẾT{% elif vong_so == 101 %}🏆 BÁN KẾT{% elif vong_so == 102 %}🏆 CHUNG KẾT{% else %}🔄 VÒNG {{ vong_so }}{% endif %} — {{ tran_list|length }} trận
                         <small class="text-muted fw-normal ms-2">
                             ({{ tran_list|selectattr('trang_thai','equalto','Đã xong')|list|length }} đã xong)
                         </small>
@@ -538,7 +539,9 @@ BTC</textarea>
                         {% set tran_san = tran_list|selectattr('san','equalto',san)|list %}
                         <div class="col-md-{{ 12 // [san_list|length, 3]|min }}">
                             <div class="border rounded p-2 h-100" style="border-color:#0d6efd44!important;">
-                                <div class="text-center fw-bold small text-primary mb-2">🏟️ SÂN {{ san }}</div>
+                                <div class="text-center fw-bold small text-primary mb-2">
+                                    {% if tran_san[0].bang %}BẢNG {{ tran_san[0].bang }} · {% endif %}🏟️ SÂN {{ san }}
+                                </div>
 
                                 {% for tran in tran_san %}
                                 <div class="tran-card rounded p-2 mb-2 {{ 'da-xong' if tran.trang_thai == 'Đã xong' else '' }}"
@@ -583,7 +586,7 @@ BTC</textarea>
 
             {% else %}
                 <div class="text-center py-4">
-                    {% if registrations|length >= 4 %}
+                    {% if registrations|length >= min_schedule_players %}
                         <p class="text-muted mb-3">Chưa có lịch thi đấu. Bấm bên dưới để tự động sinh lịch.</p>
                         <form action="/giai-dau/{{ giai.id }}/chia-lich" method="POST">
                             <button type="submit" class="btn btn-primary fw-bold px-4">
@@ -592,7 +595,7 @@ BTC</textarea>
                         </form>
                     {% else %}
                         <div class="alert alert-warning d-inline-block">
-                            ⚠️ Cần ít nhất <strong>4 VĐV</strong> để tạo lịch (hiện có {{ registrations|length }})
+                            ⚠️ Cần ít nhất <strong>{{ min_schedule_players }} VĐV</strong> để tạo lịch (hiện có {{ registrations|length }})
                         </div>
                     {% endif %}
                 </div>
@@ -1201,6 +1204,10 @@ async function saveActiveScore() {
         const result = await response.json();
         if (!response.ok || !result.success) {
             throw new Error(result.error || 'Không lưu được điểm');
+        }
+        if (result.reload_required) {
+            window.location.reload();
+            return;
         }
         if (requestId !== lastSaveRequestId || requestScoreKey !== lastQueuedScoreKey) {
             return;

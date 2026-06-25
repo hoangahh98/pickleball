@@ -65,6 +65,40 @@
                     </div>
 
                     <!-- SỐ NGƯỜI DỰ KIẾN -->
+                    <div class="card bg-light mb-3">
+                        <div class="card-body">
+                            <h6 class="mb-3"><strong>🧩 Thể Thức Thi Đấu</strong></h6>
+                            <div class="mb-3">
+                                <div class="btn-group w-100" role="group">
+                                    <input type="radio" class="btn-check" name="the_thuc" value="vong_tron" id="theThucVongTron"
+                                           {% if not form_data or form_data.get('the_thuc', 'vong_tron') == 'vong_tron' %}checked{% endif %}>
+                                    <label class="btn btn-outline-primary" for="theThucVongTron">Vòng tròn</label>
+                                    <input type="radio" class="btn-check" name="the_thuc" value="bang" id="theThucBang"
+                                           {% if form_data and form_data.get('the_thuc') == 'bang' %}checked{% endif %}>
+                                    <label class="btn btn-outline-primary" for="theThucBang">Đánh bảng + Knockout</label>
+                                </div>
+                            </div>
+                            <div class="row g-2">
+                                <div class="col-md-4">
+                                    <label class="form-label">Đội / bảng</label>
+                                    <input type="number" name="so_doi_moi_bang" class="form-control" min="2"
+                                           value="{{ form_data.get('so_doi_moi_bang', 4) if form_data else 4 }}">
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">Số bảng</label>
+                                    <input type="number" name="so_bang" class="form-control" min="1"
+                                           value="{{ form_data.get('so_bang', 2) if form_data else 2 }}">
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">Đội vào vòng trong</label>
+                                    <input type="number" name="so_doi_vao_vong_trong" class="form-control" min="8"
+                                           value="{{ form_data.get('so_doi_vao_vong_trong', 8) if form_data else 8 }}">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- SỐ NGƯỜI DỰ KIẾN -->
                     <div class="mb-3">
                         <label class="form-label"><strong>👥 Số Người Dự Kiến <span class="text-danger">*</span></strong></label>
                         <input type="number" name="so_nguoi_du_kien" class="form-control" value="{{ form_data.get('so_nguoi_du_kien', 10) if form_data else 10 }}" required>

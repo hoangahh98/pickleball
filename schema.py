@@ -51,6 +51,12 @@ ADD COLUMN IF NOT EXISTS tien_giai_3 NUMERIC(12, 2);
 ALTER TABLE giai_dau
 ADD COLUMN IF NOT EXISTS owner_admin_id INTEGER REFERENCES users(id) ON DELETE SET NULL;
 
+ALTER TABLE giai_dau
+ADD COLUMN IF NOT EXISTS the_thuc VARCHAR(20) DEFAULT 'vong_tron',
+ADD COLUMN IF NOT EXISTS so_doi_moi_bang INTEGER DEFAULT 4,
+ADD COLUMN IF NOT EXISTS so_bang INTEGER DEFAULT 2,
+ADD COLUMN IF NOT EXISTS so_doi_vao_vong_trong INTEGER DEFAULT 8;
+
 UPDATE giai_dau
 SET owner_admin_id = COALESCE(
     (SELECT id FROM users WHERE lower(email) = lower('admin@pickleball') LIMIT 1),
@@ -71,6 +77,10 @@ ADD COLUMN IF NOT EXISTS thu_tu_danh INTEGER DEFAULT 2;
 
 ALTER TABLE tran_dau
 ADD COLUMN IF NOT EXISTS doi_dang_giao VARCHAR(1) DEFAULT 'A';
+
+ALTER TABLE tran_dau
+ADD COLUMN IF NOT EXISTS giai_doan VARCHAR(20) DEFAULT 'vong_tron',
+ADD COLUMN IF NOT EXISTS bang_dau VARCHAR(20);
 
 CREATE INDEX IF NOT EXISTS idx_van_dong_vien_lower_email
 ON van_dong_vien (lower(email));

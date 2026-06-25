@@ -223,7 +223,7 @@
                 <div class="mb-4">
                     <!-- Vòng header -->
                     <div class="vong-header rounded px-3 py-2 mb-3 fw-bold text-primary">
-                        🔄 VÒNG {{ vong_so }} — {{ tran_list|length }} trận
+                        {% if vong_so == 100 %}🏆 TỨ KẾT{% elif vong_so == 101 %}🏆 BÁN KẾT{% elif vong_so == 102 %}🏆 CHUNG KẾT{% else %}🔄 VÒNG {{ vong_so }}{% endif %} — {{ tran_list|length }} trận
                         <small class="text-muted fw-normal ms-2">
                             ({{ tran_list|selectattr('trang_thai','equalto','Đã xong')|list|length }} đã xong)
                         </small>
@@ -236,7 +236,9 @@
                         {% set tran_san = tran_list|selectattr('san','equalto',san)|list %}
                         <div class="col-md-{{ 12 // [san_list|length, 3]|min }}">
                             <div class="border rounded p-2 h-100" style="border-color:#0d6efd44!important;">
-                                <div class="text-center fw-bold small text-primary mb-2">🏟️ SÂN {{ san }}</div>
+                                <div class="text-center fw-bold small text-primary mb-2">
+                                    {% if tran_san[0].bang %}BẢNG {{ tran_san[0].bang }} · {% endif %}🏟️ SÂN {{ san }}
+                                </div>
                                 {% for tran in tran_san %}
                                 <div class="tran-card rounded p-2 mb-2 {{ 'da-xong' if tran.trang_thai == 'Đã xong' else '' }}"
                                      data-match-id="{{ tran.id }}"

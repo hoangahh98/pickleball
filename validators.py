@@ -4,6 +4,7 @@ from decimal import Decimal, InvalidOperation
 
 VALID_TRINH_DO = {"A", "B", "C", "D"}
 VALID_LOAI_DAU = {"don", "doi"}
+VALID_THE_THUC = {"vong_tron", "bang"}
 VALID_LOAI_THANH_VIEN = {"co_dinh", "vang_lai"}
 EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
@@ -71,12 +72,16 @@ def _normalize_tournament_form_legacy(form):
     dia_diem = (form.get("dia_diem") or "").strip()
     thoi_gian_bat_dau = (form.get("thoi_gian_bat_dau") or "").strip() or None
     loai_dau = (form.get("loai_dau") or "don").strip()
+    the_thuc = (form.get("the_thuc") or "vong_tron").strip()
 
     if not ten_giai_dau:
         errors.append("Tên giải không được để trống.")
     if loai_dau not in VALID_LOAI_DAU:
         errors.append("Hình thức thi đấu không hợp lệ.")
         loai_dau = "don"
+    if the_thuc not in VALID_THE_THUC:
+        errors.append("Thể thức thi đấu không hợp lệ.")
+        the_thuc = "vong_tron"
 
     numeric_fields = {}
     try:
@@ -116,6 +121,7 @@ def _normalize_tournament_form_legacy(form):
         "dia_diem": dia_diem,
         "thoi_gian_bat_dau": thoi_gian_bat_dau,
         "loai_dau": loai_dau,
+        "the_thuc": the_thuc,
         **numeric_fields,
     }
     return data, errors
@@ -146,6 +152,9 @@ def normalize_tournament_form_v2(form):
         "ty_le_giai_1": (form.get("ty_le_giai_1"), 0, 0, None),
         "ty_le_giai_2": (form.get("ty_le_giai_2"), 0, 0, None),
         "ty_le_giai_3": (form.get("ty_le_giai_3"), 0, 0, None),
+        "so_doi_moi_bang": (form.get("so_doi_moi_bang"), 4, 2, None),
+        "so_bang": (form.get("so_bang"), 2, 1, None),
+        "so_doi_vao_vong_trong": (form.get("so_doi_vao_vong_trong"), 8, 8, None),
     }
     numeric_fields = {}
     has_bad_number = False

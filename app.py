@@ -157,6 +157,14 @@ def _giai_tuple_from_form(giai_id, form_data):
         form_data.get('loai_dau'),
         form_data.get('diem_cham'),
         form_data.get('diem_toi_da'),
+        None,
+        None,
+        None,
+        None,
+        form_data.get('the_thuc', 'vong_tron'),
+        form_data.get('so_doi_moi_bang', 4),
+        form_data.get('so_bang', 2),
+        form_data.get('so_doi_vao_vong_trong', 8),
     )
 
 
@@ -435,6 +443,119 @@ def _require_super_admin():
     if not _is_super_admin():
         return "Khong co quyen quan ly tai khoan admin", 403
     return None
+
+
+def _chunks_evenly(items, group_count):
+    group_count = max(1, int(group_count or 1))
+    groups = [[] for _ in range(group_count)]
+    for index, item in enumerate(items):
+        groups[index % group_count].append(item)
+    return groups
+
+
+def _group_label(index):
+    return chr(ord('A') + index)
+
+
+def _build_group_stage_matches(teams, num_courts, group_count, teams_per_group=None):
+    matches = []
+    group_count = max(1, int(group_count or 1))
+    teams = list(teams)
+    if teams_per_group:
+        teams_per_group = max(2, int(teams_per_group or 2))
+        groups = [teams[index * teams_per_group:(index + 1) * teams_per_group] for index in range(group_count)]
+        overflow = teams[group_count * teams_per_group:]
+        for index, team in enumerate(overflow):
+            groups[index % group_count].append(team)
+    else:
+        groups = _chunks_evenly(teams, group_count)
+    for group_index, group_teams in enumerate(groups):
+        if len(group_teams) < 2:
+            continue
+        group_name = _group_label(group_index)
+        group_matches = MatchSchedulerService.generate_round_robin(group_teams, num_courts, 'don')
+        for match in group_matches:
+            match['giai_doan'] = 'bang'
+            match['bang'] = group_name
+        matches.extend(group_matches)
+    return matches
+
+
+def _rank_teams_for_matches(matches):
+    return MatchModel.get_bang_xep_hang_by_matches(matches)
+
+
+def _get_winner_from_match(match):
+    diem_a = match[3] or 0
+    diem_b = match[4] or 0
+    if match[5] != 'Đã xong' or diem_a == diem_b:
+        return None
+    return match[1] if diem_a > diem_b else match[2]
+
+
+def _build_knockout_matches(teams, giai_doan, vong_dau, num_courts):
+    matches = []
+    for index in range(0, len(teams), 2):
+        if index + 1 >= len(teams):
+            break
+        matches.append({
+            'doi_a': teams[index],
+            'doi_b': teams[index + 1],
+            'san': (len(matches) % max(1, int(num_courts or 1))) + 1,
+            'vong': vong_dau,
+            'giai_doan': giai_doan,
+            'bang': None,
+        })
+    return matches
+
+
+def _ensure_knockout_progress(giai_id):
+    giai_raw = TournamentModel.get_details(giai_id)
+    if not giai_raw or len(giai_raw) <= 22 or giai_raw[22] != 'bang':
+        return
+
+    matches = MatchModel.get_all_by_tournament(giai_id)
+    group_matches = [match for match in matches if len(match) > 10 and match[10] == 'bang']
+    if not group_matches:
+        return
+
+    existing_stages = {match[10] for match in matches if len(match) > 10}
+    num_courts = giai_raw[2] or 1
+
+    if 'tu_ket' not in existing_stages:
+        if any(match[5] != 'Đã xong' for match in group_matches):
+            return
+        grouped = {}
+        for match in group_matches:
+            grouped.setdefault(match[11] or 'A', []).append(match)
+        qualifiers = []
+        total_qualifiers = int(giai_raw[25] if len(giai_raw) > 25 and giai_raw[25] else 8)
+        group_names = sorted(grouped)
+        base_slots = max(1, total_qualifiers // max(1, len(group_names)))
+        extra_slots = total_qualifiers % max(1, len(group_names))
+        for index, group_name in enumerate(group_names):
+            slots = base_slots + (1 if index < extra_slots else 0)
+            qualifiers.extend([row['ten'] for row in _rank_teams_for_matches(grouped[group_name])[:slots]])
+        qualifiers = qualifiers[:8]
+        if len(qualifiers) < 8:
+            return
+        MatchModel.save_matches(giai_id, _build_knockout_matches(qualifiers, 'tu_ket', 100, num_courts))
+        return
+
+    quarter_matches = [match for match in matches if len(match) > 10 and match[10] == 'tu_ket']
+    if 'ban_ket' not in existing_stages and quarter_matches and all(match[5] == 'Đã xong' for match in quarter_matches):
+        winners = [_get_winner_from_match(match) for match in quarter_matches]
+        winners = [winner for winner in winners if winner]
+        if len(winners) >= 4:
+            MatchModel.save_matches(giai_id, _build_knockout_matches(winners[:4], 'ban_ket', 101, num_courts))
+        return
+
+    semi_matches = [match for match in matches if len(match) > 10 and match[10] == 'ban_ket']
+    if 'chung_ket' not in existing_stages and semi_matches and all(match[5] == 'Đã xong' for match in semi_matches):
+        winners = [_get_winner_from_match(match) for match in semi_matches]
+        winners = [winner for winner in winners if winner]
+        if len(winners) >= 2:
+            MatchModel.save_matches(giai_id, _build_knockout_matches(winners[:2], 'chung_ket', 102, num_courts))
 
 
 @app.route('/doi-bong')
@@ -775,8 +896,8 @@ def them_giai_dau():
                     (ten_giai_dau, so_luong_san, dia_diem,
                      chi_phi_san_bai, chi_phi_nuoc_noi, chi_phi_giai_thuong, chi_phi_khac,
                      ty_le_giai_1, ty_le_giai_2, ty_le_giai_3, so_nguoi_du_kien, thoi_gian_bat_dau, loai_dau,
-                     owner_admin_id)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
+                     owner_admin_id, the_thuc, so_doi_moi_bang, so_bang, so_doi_vao_vong_trong)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
             """, (
                 form_data['ten_giai_dau'],
                 form_data['so_luong_san'],
@@ -791,7 +912,11 @@ def them_giai_dau():
                 form_data['so_nguoi_du_kien'],
                 form_data['thoi_gian_bat_dau'],
                 loai_dau,
-                user.get('id')
+                user.get('id'),
+                form_data['the_thuc'],
+                form_data['so_doi_moi_bang'],
+                form_data['so_bang'],
+                form_data['so_doi_vao_vong_trong']
             ))
         DBLogger.log_success(f"Tournament created: {form_data['ten_giai_dau']} ({loai_dau})", user.get('email'), '/them-giai-dau')
         return redirect('/giai-dau')
@@ -832,7 +957,8 @@ def sua_giai_dau(giai_id):
                     chi_phi_giai_thuong=%s, chi_phi_khac=%s,
                     ty_le_giai_1=%s, ty_le_giai_2=%s, ty_le_giai_3=%s,
                     so_nguoi_du_kien=%s, thoi_gian_bat_dau=%s, loai_dau=%s,
-                    diem_cham=%s, diem_toi_da=%s
+                    diem_cham=%s, diem_toi_da=%s,
+                    the_thuc=%s, so_doi_moi_bang=%s, so_bang=%s, so_doi_vao_vong_trong=%s
                 WHERE id=%s;
             """, (
                 form_data['ten_giai_dau'],
@@ -850,6 +976,10 @@ def sua_giai_dau(giai_id):
                 loai_dau,
                 diem_cham,
                 diem_toi_da,
+                form_data['the_thuc'],
+                form_data['so_doi_moi_bang'],
+                form_data['so_bang'],
+                form_data['so_doi_vao_vong_trong'],
                 giai_id
             ))
         DBLogger.log_success(f"Tournament {giai_id} updated ({loai_dau})", user.get('email'), f'/sua-giai-dau/{giai_id}')
@@ -906,6 +1036,10 @@ def chi_tiet_giai_admin(giai_id):
         giai_detail['diem_cham'] = int(giai_raw[16] if len(giai_raw) > 16 and giai_raw[16] else 11)
         giai_detail['diem_toi_da'] = int(giai_raw[17] if len(giai_raw) > 17 and giai_raw[17] else 15)
         giai_detail['owner_admin_id'] = giai_raw[21] if len(giai_raw) > 21 else None
+        giai_detail['the_thuc'] = giai_raw[22] if len(giai_raw) > 22 and giai_raw[22] else 'vong_tron'
+        giai_detail['so_doi_moi_bang'] = int(giai_raw[23] if len(giai_raw) > 23 and giai_raw[23] else 4)
+        giai_detail['so_bang'] = int(giai_raw[24] if len(giai_raw) > 24 and giai_raw[24] else 2)
+        giai_detail['so_doi_vao_vong_trong'] = int(giai_raw[25] if len(giai_raw) > 25 and giai_raw[25] else 8)
 
         # Build vong_dict: { vong_number: [match_dict, ...] } for the template
         vong_dict = {}
@@ -918,7 +1052,9 @@ def chi_tiet_giai_admin(giai_id):
                 "diem_a": m[3], "diem_b": m[4],
                 "trang_thai": m[5], "san": m[6] or 1, "vong": vong,
                 "thu_tu_danh": m[8] if len(m) > 8 and m[8] else 2,
-                "doi_dang_giao": m[9] if len(m) > 9 and m[9] else 'A'
+                "doi_dang_giao": m[9] if len(m) > 9 and m[9] else 'A',
+                "giai_doan": m[10] if len(m) > 10 and m[10] else 'vong_tron',
+                "bang": m[11] if len(m) > 11 else None
             })
         giai_detail['vong_dict'] = vong_dict
         
@@ -1065,6 +1201,7 @@ def auto_chia_lich(giai_id):
         so_san = giai_raw[2] if giai_raw else 1
         
         loai_dau = giai_raw[15] if len(giai_raw) > 15 and giai_raw[15] else 'don'
+        the_thuc = giai_raw[22] if len(giai_raw) > 22 and giai_raw[22] else 'vong_tron'
         
         MatchModel.delete_by_tournament(giai_id)
 
@@ -1075,7 +1212,21 @@ def auto_chia_lich(giai_id):
             # Singles: chỉ cần tên
             players = [r[2] for r in registrations]
 
-        matches = MatchSchedulerService.generate_round_robin(players, so_san, loai_dau)
+        if the_thuc == 'bang':
+            if loai_dau == 'doi':
+                teams = MatchSchedulerService._smart_pair(players)
+            else:
+                teams = players
+            if len(teams) < 8:
+                return redirect(f'/giai-dau/{giai_id}/admin?error=manual_pair_min')
+            matches = _build_group_stage_matches(
+                teams,
+                so_san,
+                giai_raw[24] if len(giai_raw) > 24 else 2,
+                giai_raw[23] if len(giai_raw) > 23 else 4,
+            )
+        else:
+            matches = MatchSchedulerService.generate_round_robin(players, so_san, loai_dau)
         MatchModel.save_matches(giai_id, matches)
         
         DBLogger.log_success(f"Schedule generated: {len(matches)} matches ({loai_dau})", user.get('email'), f'/giai-dau/{giai_id}/chia-lich')
@@ -1124,7 +1275,18 @@ def ghep_doi_thu_cong(giai_id):
         if len(pairs) < 2:
             return redirect(f'/giai-dau/{giai_id}/admin?error=manual_pair_min')
 
-        matches = MatchSchedulerService.generate_round_robin(pairs, giai_raw[2] if giai_raw else 1, 'don')
+        the_thuc = giai_raw[22] if len(giai_raw) > 22 and giai_raw[22] else 'vong_tron'
+        if the_thuc == 'bang' and len(pairs) < 8:
+            return redirect(f'/giai-dau/{giai_id}/admin?error=manual_pair_min')
+        if the_thuc == 'bang':
+            matches = _build_group_stage_matches(
+                pairs,
+                giai_raw[2] if giai_raw else 1,
+                giai_raw[24] if len(giai_raw) > 24 else 2,
+                giai_raw[23] if len(giai_raw) > 23 else 4,
+            )
+        else:
+            matches = MatchSchedulerService.generate_round_robin(pairs, giai_raw[2] if giai_raw else 1, 'don')
         MatchModel.delete_by_tournament(giai_id)
         MatchModel.save_matches(giai_id, matches)
 
@@ -1246,13 +1408,16 @@ def cap_nhat_ty_so(tran_id):
         if not _get_tournament_for_admin_or_403(giai_id, user):
             return "Khong co quyen cap nhat giai dau nay", 403
         
+        before_match_count = len(MatchModel.get_all_by_tournament(giai_id)) if is_fetch_score_update else 0
         trang_thai, diem_a, diem_b = MatchModel.update_score(tran_id, diem_a, diem_b, thu_tu_danh, doi_dang_giao)
+        _ensure_knockout_progress(giai_id)
         if not is_fetch_score_update:
             DBLogger.log_success(f"Match {tran_id} score updated: {diem_a}-{diem_b}-{thu_tu_danh}-{doi_dang_giao}", user.get('email'), f'/tran-dau/{tran_id}/cap-nhat-ty-so')
         if is_fetch_score_update:
             matches = MatchModel.get_all_by_tournament(giai_id)
             return jsonify({
                 'success': True,
+                'reload_required': len(matches) != before_match_count,
                 'tran_id': tran_id,
                 'giai_id': giai_id,
                 'diem_a': diem_a,
@@ -1606,11 +1771,17 @@ def chi_tiet_giai_vdv(giai_id):
                 "diem_a": m[3], "diem_b": m[4],
                 "trang_thai": m[5], "san": m[6] or 1, "vong": vong,
                 "thu_tu_danh": m[8] if len(m) > 8 and m[8] else 2,
-                "doi_dang_giao": m[9] if len(m) > 9 and m[9] else 'A'
+                "doi_dang_giao": m[9] if len(m) > 9 and m[9] else 'A',
+                "giai_doan": m[10] if len(m) > 10 and m[10] else 'vong_tron',
+                "bang": m[11] if len(m) > 11 else None
             })
         giai_detail['vong_dict'] = vong_dict
 
         giai_detail['loai_dau'] = giai_raw[15] if len(giai_raw) > 15 and giai_raw[15] else 'don'
+        giai_detail['the_thuc'] = giai_raw[22] if len(giai_raw) > 22 and giai_raw[22] else 'vong_tron'
+        giai_detail['so_doi_moi_bang'] = int(giai_raw[23] if len(giai_raw) > 23 and giai_raw[23] else 4)
+        giai_detail['so_bang'] = int(giai_raw[24] if len(giai_raw) > 24 and giai_raw[24] else 2)
+        giai_detail['so_doi_vao_vong_trong'] = int(giai_raw[25] if len(giai_raw) > 25 and giai_raw[25] else 8)
         
         DBLogger.log_request('GET', f'/giai-dau/{giai_id}/vdv', user.get('email'))
         return render_template('chi_tiet_giai_vdv.html', giai=giai_detail, registrations=registrations, enumerate=enumerate)
