@@ -504,16 +504,26 @@ def _winner_placeholder(stage, index):
     return f"Thắng {_stage_label(stage)} {index}"
 
 
-def _build_group_stage_matches(teams, num_courts, qualifier_count=2, teams_per_group=None):
+def _build_group_stage_matches(teams, num_courts, qualifier_count=2, teams_per_group=None, group_count=None):
     matches = []
     teams = list(teams)
-    group_count = _calculate_group_count(len(teams), qualifier_count)
+    if group_count is None:
+        group_count = _calculate_group_count(len(teams), qualifier_count)
+    else:
+        group_count = max(1, int(group_count or 1))
     if teams_per_group:
         teams_per_group = max(2, int(teams_per_group or 2))
-        groups = [teams[index * teams_per_group:(index + 1) * teams_per_group] for index in range(group_count)]
-        overflow = teams[group_count * teams_per_group:]
-        for index, team in enumerate(overflow):
-            groups[index % group_count].append(team)
+        group_count = max(1, min(group_count, max(1, (len(teams) + 1) // 2)))
+        groups = [[] for _ in range(group_count)]
+        team_index = 0
+        for group_index in range(group_count):
+            while team_index < len(teams) and len(groups[group_index]) < teams_per_group:
+                groups[group_index].append(teams[team_index])
+                team_index += 1
+        while team_index < len(teams):
+            target_group = min(range(group_count), key=lambda idx: len(groups[idx]))
+            groups[target_group].append(teams[team_index])
+            team_index += 1
     else:
         groups = _chunks_evenly(teams, group_count)
     grouped_rounds = []
@@ -1367,6 +1377,8 @@ def auto_chia_lich(giai_id):
                 teams,
                 so_san,
                 qualifier_count,
+                giai_raw[23] if len(giai_raw) > 23 else 4,
+                giai_raw[24] if len(giai_raw) > 24 else None,
             )
             matches.extend(_build_knockout_skeleton(qualifier_count, so_san))
         else:
@@ -1428,6 +1440,8 @@ def ghep_doi_thu_cong(giai_id):
                 pairs,
                 giai_raw[2] if giai_raw else 1,
                 qualifier_count,
+                giai_raw[23] if len(giai_raw) > 23 else 4,
+                giai_raw[24] if len(giai_raw) > 24 else None,
             )
             matches.extend(_build_knockout_skeleton(qualifier_count, giai_raw[2] if giai_raw else 1))
         else:
