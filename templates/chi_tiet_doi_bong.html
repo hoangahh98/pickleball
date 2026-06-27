@@ -297,8 +297,8 @@
                             </thead>
                             <tbody>
                                 {% for tv in finance.thanh_vien_list %}
-                                <tr class="{% if tv.so_tien_da_dong >= finance.muc_phi_thang and finance.muc_phi_thang > 0 %}sufficient-row{% else %}insufficient-row{% endif %}">
-                                    <td class="fw-semibold">{{ tv.ten }}</td>
+                                <tr class="{{ 'current-vdv-row' if current_vdv_id is defined and tv.van_dong_vien_id == current_vdv_id else '' }} {% if tv.so_tien_da_dong >= finance.muc_phi_thang and finance.muc_phi_thang > 0 %}sufficient-row{% else %}insufficient-row{% endif %}">
+                                    <td class="fw-semibold {{ 'current-vdv-name' if current_vdv_id is defined and tv.van_dong_vien_id == current_vdv_id else '' }}">{{ tv.ten }}</td>
                                     <td><span class="badge bg-secondary">{{ tv.trinh_do }}</span></td>
                                     <td class="small text-muted">{{ tv.email or '' }}</td>
                                     <td><span class="badge {{ 'bg-info text-dark' if tv.loai_thanh_vien == 'vang_lai' else 'bg-success' }}">{{ tv.loai_hien_thi }}</span></td>

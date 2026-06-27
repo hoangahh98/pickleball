@@ -6,6 +6,7 @@ Hệ thống xác thực cho Admin & VĐV
 from db import db_cursor
 from functools import wraps
 from flask import session, redirect, url_for
+from config import normalize_admin_user
 
 class AuthService:
     @staticmethod
@@ -22,8 +23,17 @@ class AuthService:
     @staticmethod
     def login_admin(email, password):
         """Login cho admin"""
+        login_name = normalize_admin_user(email)
         with db_cursor() as cursor:
-            cursor.execute("SELECT id, email, password FROM users WHERE lower(email) = lower(%s);", (email,))
+            cursor.execute("""
+                SELECT id, email, password
+                FROM users
+                WHERE role = 'admin'
+                  AND (
+                    lower(email) = lower(%s)
+                    OR lower(split_part(email, '@', 1)) = lower(%s)
+                  );
+            """, (login_name, login_name))
             user = cursor.fetchone()
 
         if not user:
@@ -32,21 +42,22 @@ class AuthService:
         if not AuthService.verify_password(password, user[2]):
             return None, "Mật khẩu sai"
         
-        return {"id": user[0], "email": user[1], "role": "admin"}, None
+        return {"id": user[0], "email": normalize_admin_user(user[1]), "role": "admin"}, None
 
     @staticmethod
     def register_admin(email, password):
         """Tạo tài khoản admin (chỉ cấu hình lần đầu)"""
+        admin_user = normalize_admin_user(email)
         try:
             with db_cursor(commit=True) as cursor:
-                cursor.execute("SELECT id FROM users WHERE lower(email) = lower(%s);", (email,))
+                cursor.execute("SELECT id FROM users WHERE role = 'admin' AND lower(email) = lower(%s);", (admin_user,))
                 if cursor.fetchone():
-                    return False, "Email đã tồn tại"
+                    return False, "User admin đã tồn tại"
 
                 hashed = AuthService.hash_password(password)
                 cursor.execute("""
                     INSERT INTO users (email, password, role) VALUES (%s, %s, %s);
-                """, (email.strip().lower(), hashed, "admin"))
+                """, (admin_user, hashed, "admin"))
             return True, "Tạo admin thành công"
         except Exception as e:
             return False, str(e)

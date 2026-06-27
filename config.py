@@ -110,6 +110,13 @@ APP_NAME = "Pickleball Tournament Manager"
 APP_VERSION = "1.0.0"
 BASE_URL = os.environ.get("BASE_URL", "https://pickleball-1-hsk7.onrender.com")
 
+
+def normalize_admin_user(value):
+    return (value or "").strip().lower().split("@", 1)[0]
+
+
+SUPER_ADMIN_EMAIL = normalize_admin_user(os.environ.get("SUPER_ADMIN_EMAIL", "admin"))
+
 # ============ PERFORMANCE SETTINGS ============
 DB_POOL_MIN = max(1, _env_int("DB_POOL_MIN", 1))
 DB_POOL_MAX = max(DB_POOL_MIN, _env_int("DB_POOL_MAX", 5))

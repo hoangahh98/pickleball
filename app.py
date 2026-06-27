@@ -9,7 +9,15 @@ from models import VanDongVienModel, AdminUserModel, TournamentModel, DangKyGiai
 from services import FinanceService
 from knockout_logic import MatchSchedulerService
 from auth import AuthService, login_required, admin_required
-from config import FLASK_SECRET_KEY, FLASK_SECRET_KEY_ERROR, BASE_URL, LOG_ALL_REQUESTS, SLOW_REQUEST_MS
+from config import (
+    FLASK_SECRET_KEY,
+    FLASK_SECRET_KEY_ERROR,
+    BASE_URL,
+    LOG_ALL_REQUESTS,
+    SLOW_REQUEST_MS,
+    SUPER_ADMIN_EMAIL,
+    normalize_admin_user,
+)
 from db import db_cursor
 from logging_service import DBLogger, DBLogViewer
 import traceback
@@ -27,6 +35,11 @@ from werkzeug.exceptions import HTTPException
 
 app = Flask(__name__)
 app.secret_key = FLASK_SECRET_KEY
+
+
+@app.context_processor
+def inject_admin_user_config():
+    return {"super_admin_email": SUPER_ADMIN_EMAIL}
 
 
 @app.route('/service-worker.js')
@@ -432,7 +445,7 @@ def _get_tournament_for_admin_or_403(giai_id, user):
 
 def _is_super_admin(user=None):
     user = user or session.get('user', {})
-    return (user.get('email') or '').strip().lower() == 'admin@pickleball'
+    return normalize_admin_user(user.get('email')) == SUPER_ADMIN_EMAIL
 
 
 def _admin_scope_id(user=None):
@@ -1677,9 +1690,10 @@ def login():
         email = request.form.get('email')
         password = request.form.get('password')
         role = request.form.get('role')
+        login_name = normalize_admin_user(email) if role == 'admin' else (email or '').strip().lower()
         
         if role == 'admin':
-            user, error = AuthService.login_admin(email, password)
+            user, error = AuthService.login_admin(login_name, password)
         else:
             vdv = VanDongVienModel.get_by_email(email)
             if vdv and password == '123456789':
@@ -1690,10 +1704,10 @@ def login():
         
         if user:
             session['user'] = user
-            DBLogger.log_success(f"User {email} ({role}) logged in", email, '/login')
+            DBLogger.log_success(f"User {login_name} ({role}) logged in", login_name, '/login')
             return redirect(url_for('vdv_dashboard') if user.get('role') == 'vdv' else url_for('trang_chu'))
         
-        DBLogger.log_warning(f"Failed login attempt: {email}", email, '/login')
+        DBLogger.log_warning(f"Failed login attempt: {login_name}", login_name, '/login')
         return render_template('login.html', error=error)
     except Exception as e:
         DBLogger.log_exception(
@@ -1734,7 +1748,7 @@ def admin_settings():
         'admin_settings.html',
         admins=AdminUserModel.get_all(),
         success=success_messages.get(success_key),
-        super_admin_email='admin@pickleball',
+        super_admin_email=SUPER_ADMIN_EMAIL,
     )
 
 @app.route('/tao-admin', methods=['POST'])
@@ -1746,16 +1760,16 @@ def tao_admin():
         forbidden = _require_super_admin()
         if forbidden:
             return forbidden
-        email = request.form.get('email')
+        email = normalize_admin_user(request.form.get('email'))
         password = request.form.get('password')
         confirm = request.form.get('confirm_password')
         
         if not email or not password:
-            return render_template('admin_settings.html', admins=AdminUserModel.get_all(), error="Email & password required", super_admin_email='admin@pickleball')
+            return render_template('admin_settings.html', admins=AdminUserModel.get_all(), error="User admin & password required", super_admin_email=SUPER_ADMIN_EMAIL)
         if password != confirm:
-            return render_template('admin_settings.html', admins=AdminUserModel.get_all(), error="Passwords don't match", super_admin_email='admin@pickleball')
+            return render_template('admin_settings.html', admins=AdminUserModel.get_all(), error="Passwords don't match", super_admin_email=SUPER_ADMIN_EMAIL)
         if len(password) < 6:
-            return render_template('admin_settings.html', admins=AdminUserModel.get_all(), error="Password min 6 chars", super_admin_email='admin@pickleball')
+            return render_template('admin_settings.html', admins=AdminUserModel.get_all(), error="Password min 6 chars", super_admin_email=SUPER_ADMIN_EMAIL)
         
         success, msg = AuthService.register_admin(email, password)
         
@@ -1764,10 +1778,10 @@ def tao_admin():
             return redirect('/admin-settings?success=created')
         else:
             DBLogger.log_warning(f"Failed to create admin: {email}", user.get('email'), '/tao-admin')
-            return render_template('admin_settings.html', admins=AdminUserModel.get_all(), error=msg, super_admin_email='admin@pickleball')
+            return render_template('admin_settings.html', admins=AdminUserModel.get_all(), error=msg, super_admin_email=SUPER_ADMIN_EMAIL)
     except Exception as e:
         DBLogger.log_error(f"Error creating admin: {str(e)}", user.get('email'), '/tao-admin', context=traceback.format_exc())
-        return render_template('admin_settings.html', admins=AdminUserModel.get_all(), error=f"Error: {str(e)}", super_admin_email='admin@pickleball')
+        return render_template('admin_settings.html', admins=AdminUserModel.get_all(), error=f"Error: {str(e)}", super_admin_email=SUPER_ADMIN_EMAIL)
 
 
 @app.route('/admin-settings/<int:admin_id>/sua', methods=['POST'])
@@ -1783,21 +1797,21 @@ def sua_admin(admin_id):
         if not admin:
             return "Khong tim thay admin", 404
 
-        email = (request.form.get('email') or '').strip().lower()
+        email = normalize_admin_user(request.form.get('email'))
         password = request.form.get('password') or ''
         confirm = request.form.get('confirm_password') or ''
 
         if not email:
-            return render_template('admin_settings.html', admins=AdminUserModel.get_all(), error="Email required", super_admin_email='admin@pickleball'), 400
-        if (admin[1] or '').strip().lower() == 'admin@pickleball' and email != 'admin@pickleball':
-            return render_template('admin_settings.html', admins=AdminUserModel.get_all(), error="Khong the doi email admin goc", super_admin_email='admin@pickleball'), 400
+            return render_template('admin_settings.html', admins=AdminUserModel.get_all(), error="User admin required", super_admin_email=SUPER_ADMIN_EMAIL), 400
+        if normalize_admin_user(admin[1]) == SUPER_ADMIN_EMAIL and email != SUPER_ADMIN_EMAIL:
+            return render_template('admin_settings.html', admins=AdminUserModel.get_all(), error="Khong the doi user admin goc", super_admin_email=SUPER_ADMIN_EMAIL), 400
         if AdminUserModel.email_exists(email, exclude_id=admin_id):
-            return render_template('admin_settings.html', admins=AdminUserModel.get_all(), error="Email da ton tai", super_admin_email='admin@pickleball'), 400
+            return render_template('admin_settings.html', admins=AdminUserModel.get_all(), error="User admin da ton tai", super_admin_email=SUPER_ADMIN_EMAIL), 400
         if password or confirm:
             if password != confirm:
-                return render_template('admin_settings.html', admins=AdminUserModel.get_all(), error="Passwords don't match", super_admin_email='admin@pickleball'), 400
+                return render_template('admin_settings.html', admins=AdminUserModel.get_all(), error="Passwords don't match", super_admin_email=SUPER_ADMIN_EMAIL), 400
             if len(password) < 6:
-                return render_template('admin_settings.html', admins=AdminUserModel.get_all(), error="Password min 6 chars", super_admin_email='admin@pickleball'), 400
+                return render_template('admin_settings.html', admins=AdminUserModel.get_all(), error="Password min 6 chars", super_admin_email=SUPER_ADMIN_EMAIL), 400
             AdminUserModel.update(admin_id, email, AuthService.hash_password(password))
         else:
             AdminUserModel.update(admin_id, email)
@@ -1808,7 +1822,7 @@ def sua_admin(admin_id):
         return redirect('/admin-settings?success=updated')
     except Exception as e:
         DBLogger.log_error(f"Error updating admin: {str(e)}", user.get('email'), f'/admin-settings/{admin_id}/sua', context=traceback.format_exc())
-        return render_template('admin_settings.html', admins=AdminUserModel.get_all(), error=f"Error: {str(e)}", super_admin_email='admin@pickleball'), 500
+        return render_template('admin_settings.html', admins=AdminUserModel.get_all(), error=f"Error: {str(e)}", super_admin_email=SUPER_ADMIN_EMAIL), 500
 
 
 @app.route('/admin-settings/<int:admin_id>/xoa', methods=['POST'])
@@ -1823,19 +1837,19 @@ def xoa_admin(admin_id):
         admin = AdminUserModel.get_by_id(admin_id)
         if not admin:
             return "Khong tim thay admin", 404
-        if (admin[1] or '').strip().lower() == 'admin@pickleball':
-            return render_template('admin_settings.html', admins=AdminUserModel.get_all(), error="Khong the xoa admin goc", super_admin_email='admin@pickleball'), 400
+        if normalize_admin_user(admin[1]) == SUPER_ADMIN_EMAIL:
+            return render_template('admin_settings.html', admins=AdminUserModel.get_all(), error="Khong the xoa admin goc", super_admin_email=SUPER_ADMIN_EMAIL), 400
 
-        fallback = next((item for item in AdminUserModel.get_all() if (item[1] or '').strip().lower() == 'admin@pickleball'), None)
+        fallback = next((item for item in AdminUserModel.get_all() if normalize_admin_user(item[1]) == SUPER_ADMIN_EMAIL), None)
         if not fallback:
-            return render_template('admin_settings.html', admins=AdminUserModel.get_all(), error="Khong tim thay admin goc de chuyen quyen so huu", super_admin_email='admin@pickleball'), 400
+            return render_template('admin_settings.html', admins=AdminUserModel.get_all(), error="Khong tim thay admin goc de chuyen quyen so huu", super_admin_email=SUPER_ADMIN_EMAIL), 400
 
         AdminUserModel.delete(admin_id, fallback[0])
         DBLogger.log_success(f"Admin deleted: {admin[1]}", user.get('email'), f'/admin-settings/{admin_id}/xoa')
         return redirect('/admin-settings?success=deleted')
     except Exception as e:
         DBLogger.log_error(f"Error deleting admin: {str(e)}", user.get('email'), f'/admin-settings/{admin_id}/xoa', context=traceback.format_exc())
-        return render_template('admin_settings.html', admins=AdminUserModel.get_all(), error=f"Error: {str(e)}", super_admin_email='admin@pickleball'), 500
+        return render_template('admin_settings.html', admins=AdminUserModel.get_all(), error=f"Error: {str(e)}", super_admin_email=SUPER_ADMIN_EMAIL), 500
 
 # ============ VĐV ROUTES ============
 
@@ -1905,6 +1919,7 @@ def chi_tiet_doi_bong_vdv(doi_bong_id):
             permissions=[],
             can_edit=False,
             is_owner=False,
+            current_vdv_id=user.get('id'),
         )
     except Exception as e:
         DBLogger.log_error(f"Error loading team for VĐV: {str(e)}", user.get('email'), f'/doi-bong/{doi_bong_id}/vdv', context=traceback.format_exc())
@@ -1973,7 +1988,14 @@ def chi_tiet_giai_vdv(giai_id):
         giai_detail['so_doi_vao_vong_trong'] = int(giai_raw[25] if len(giai_raw) > 25 and giai_raw[25] else 2)
         
         DBLogger.log_request('GET', f'/giai-dau/{giai_id}/vdv', user.get('email'))
-        return render_template('chi_tiet_giai_vdv.html', giai=giai_detail, registrations=registrations, enumerate=enumerate)
+        return render_template(
+            'chi_tiet_giai_vdv.html',
+            giai=giai_detail,
+            registrations=registrations,
+            enumerate=enumerate,
+            current_vdv_id=vdv_id,
+            current_vdv_name=user.get('ten'),
+        )
     except Exception as e:
         DBLogger.log_error(f"Error loading tournament: {str(e)}", user.get('email'), f'/giai-dau/{giai_id}/vdv', context=traceback.format_exc())
         return f"❌ Error: {str(e)}", 500

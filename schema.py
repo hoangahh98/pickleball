@@ -44,6 +44,11 @@ ADD COLUMN IF NOT EXISTS cf_ray VARCHAR(100);
 
 
 APP_SCHEMA_SQL = """
+UPDATE users
+SET email = lower(split_part(email, '@', 1))
+WHERE role = 'admin'
+  AND position('@' in email) > 0;
+
 ALTER TABLE giai_dau
 ADD COLUMN IF NOT EXISTS diem_cham INTEGER DEFAULT 11,
 ADD COLUMN IF NOT EXISTS diem_toi_da INTEGER DEFAULT 15;
@@ -67,7 +72,7 @@ ALTER COLUMN so_doi_vao_vong_trong SET DEFAULT 2;
 
 UPDATE giai_dau
 SET owner_admin_id = COALESCE(
-    (SELECT id FROM users WHERE lower(email) = lower('admin@pickleball') LIMIT 1),
+    (SELECT id FROM users WHERE lower(email) = lower('admin') LIMIT 1),
     (SELECT id FROM users WHERE role = 'admin' ORDER BY id ASC LIMIT 1)
 )
 WHERE owner_admin_id IS NULL;
@@ -145,7 +150,7 @@ ADD COLUMN IF NOT EXISTS owner_admin_id INTEGER REFERENCES users(id) ON DELETE S
 
 UPDATE doi_bong
 SET owner_admin_id = COALESCE(
-    (SELECT id FROM users WHERE lower(email) = lower('admin@pickleball') LIMIT 1),
+    (SELECT id FROM users WHERE lower(email) = lower('admin') LIMIT 1),
     (SELECT id FROM users WHERE role = 'admin' ORDER BY id ASC LIMIT 1)
 )
 WHERE owner_admin_id IS NULL;

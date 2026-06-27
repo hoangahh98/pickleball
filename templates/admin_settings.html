@@ -43,7 +43,7 @@
                                 <thead class="table-light">
                                     <tr>
                                         <th style="width:80px">ID</th>
-                                        <th>Email</th>
+                                        <th>User admin</th>
                                         <th style="width:340px">Đổi mật khẩu</th>
                                         <th style="width:170px">Thao tác</th>
                                     </tr>
@@ -55,7 +55,7 @@
                                         <td>{{ admin[0] }}</td>
                                         <td>
                                             <form id="editAdmin{{ admin[0] }}" action="/admin-settings/{{ admin[0] }}/sua" method="POST">
-                                                <input type="email" class="form-control form-control-sm" name="email" value="{{ admin[1] }}" required>
+                                                <input type="text" class="form-control form-control-sm" name="email" value="{{ admin[1] }}" required>
                                             </form>
                                             {% if is_root %}
                                             <div class="small text-muted mt-1">Admin gốc, không thể xóa.</div>
@@ -76,7 +76,7 @@
                                             <div class="d-flex gap-2">
                                                 <button form="editAdmin{{ admin[0] }}" type="submit" class="btn btn-sm btn-warning">Lưu</button>
                                                 {% if not is_root %}
-                                                <form action="/admin-settings/{{ admin[0] }}/xoa" method="POST" onsubmit="return confirm('Xóa admin {{ admin[1] }}? Quyền sở hữu giải/đội sẽ chuyển về admin@pickleball.');">
+                                                <form action="/admin-settings/{{ admin[0] }}/xoa" method="POST" onsubmit="return confirm('Xóa admin {{ admin[1] }}? Quyền sở hữu giải/đội sẽ chuyển về {{ super_admin_email }}.');">
                                                     <button type="submit" class="btn btn-sm btn-outline-danger">Xóa</button>
                                                 </form>
                                                 {% endif %}
@@ -97,8 +97,8 @@
                     <div class="card-body">
                         <form action="/tao-admin" method="POST">
                             <div class="mb-3">
-                                <label class="form-label fw-semibold">Email</label>
-                                <input type="email" class="form-control" name="email" required>
+                                <label class="form-label fw-semibold">User admin</label>
+                                <input type="text" class="form-control" name="email" required>
                             </div>
                             <div class="mb-3">
                                 <label class="form-label fw-semibold">Mật khẩu</label>

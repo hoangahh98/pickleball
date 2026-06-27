@@ -65,7 +65,7 @@
         <div class="container-fluid">
             <span class="navbar-brand mb-0 h1">PICKLEBALL MANAGER</span>
             <div>
-                {% if session.user.email|lower == 'admin@pickleball' %}
+                {% if session.user.email|lower == super_admin_email %}
                 <a href="/admin-settings" class="btn btn-sm btn-outline-warning me-2">Tài khoản admin</a>
                 {% endif %}
                 <a href="/dang-xuat" class="btn btn-sm btn-outline-danger">Đăng xuất</a>

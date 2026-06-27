@@ -1,4 +1,5 @@
 from db import db_cursor
+from config import SUPER_ADMIN_EMAIL, normalize_admin_user
 
 class VanDongVienModel:
     """Vận động viên (Players)"""
@@ -128,7 +129,7 @@ class AdminUserModel:
                 SELECT u.id, u.email
                 FROM users u
                 WHERE u.role = 'admin'
-                  AND lower(u.email) <> lower('admin@pickleball')
+                  AND lower(u.email) <> lower(%s)
                   AND (%s IS NULL OR u.id <> %s)
                   AND (%s IS NULL OR u.id <> %s)
                   AND NOT EXISTS (
@@ -138,7 +139,7 @@ class AdminUserModel:
                         AND q.admin_id = u.id
                   )
                 ORDER BY u.email ASC;
-            """, (owner_admin_id, owner_admin_id, current_admin_id, current_admin_id, giai_id))
+            """, (SUPER_ADMIN_EMAIL, owner_admin_id, owner_admin_id, current_admin_id, current_admin_id, giai_id))
             return cursor.fetchall()
 
     @staticmethod
@@ -148,7 +149,7 @@ class AdminUserModel:
                 SELECT u.id, u.email
                 FROM users u
                 WHERE u.role = 'admin'
-                  AND lower(u.email) <> lower('admin@pickleball')
+                  AND lower(u.email) <> lower(%s)
                   AND (%s IS NULL OR u.id <> %s)
                   AND (%s IS NULL OR u.id <> %s)
                   AND NOT EXISTS (
@@ -158,11 +159,12 @@ class AdminUserModel:
                         AND q.admin_id = u.id
                   )
                 ORDER BY u.email ASC;
-            """, (owner_admin_id, owner_admin_id, current_admin_id, current_admin_id, doi_bong_id))
+            """, (SUPER_ADMIN_EMAIL, owner_admin_id, owner_admin_id, current_admin_id, current_admin_id, doi_bong_id))
             return cursor.fetchall()
 
     @staticmethod
     def email_exists(email, exclude_id=None):
+        email = normalize_admin_user(email)
         with db_cursor() as cursor:
             if exclude_id:
                 cursor.execute("""
@@ -177,6 +179,7 @@ class AdminUserModel:
 
     @staticmethod
     def update(admin_id, email, password_hash=None):
+        email = normalize_admin_user(email)
         with db_cursor(commit=True) as cursor:
             if password_hash:
                 cursor.execute("""

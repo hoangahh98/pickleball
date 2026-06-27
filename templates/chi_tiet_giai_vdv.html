@@ -163,9 +163,10 @@
                                     </thead>
                                     <tbody>
                                     {% for doi in bang.xep_hang %}
-                                    <tr class="{% if loop.index == 1 %}rank-1{% elif loop.index == 2 %}rank-2{% elif loop.index == 3 %}rank-3{% endif %}">
+                                    {% set is_current_team = current_vdv_name and current_vdv_name in doi.ten.split(' + ') %}
+                                    <tr class="{{ 'current-vdv-row' if is_current_team else '' }} {% if loop.index == 1 %}rank-1{% elif loop.index == 2 %}rank-2{% elif loop.index == 3 %}rank-3{% endif %}">
                                         <td>{% if loop.index == 1 %}🥇{% elif loop.index == 2 %}🥈{% elif loop.index == 3 %}🥉{% else %}{{ loop.index }}{% endif %}</td>
-                                        <td class="text-start fw-bold">{{ doi.ten }}</td>
+                                        <td class="text-start fw-bold {{ 'current-vdv-name' if is_current_team else '' }}">{{ doi.ten }}</td>
                                         <td>{{ doi.so_tran }}</td>
                                         <td class="text-success fw-bold">{{ doi.thang }}</td>
                                         <td class="text-danger">{{ doi.thua }}</td>
@@ -194,14 +195,15 @@
                         </thead>
                         <tbody>
                         {% for doi in giai.bang_xep_hang %}
-                        <tr class="{% if loop.index == 1 %}rank-1{% elif loop.index == 2 %}rank-2{% elif loop.index == 3 %}rank-3{% endif %}">
+                        {% set is_current_team = current_vdv_name and current_vdv_name in doi.ten.split(' + ') %}
+                        <tr class="{{ 'current-vdv-row' if is_current_team else '' }} {% if loop.index == 1 %}rank-1{% elif loop.index == 2 %}rank-2{% elif loop.index == 3 %}rank-3{% endif %}">
                             <td>
                                 {% if loop.index == 1 %}🥇
                                 {% elif loop.index == 2 %}🥈
                                 {% elif loop.index == 3 %}🥉
                                 {% else %}{{ loop.index }}{% endif %}
                             </td>
-                            <td class="text-start fw-bold">{{ doi.ten }}</td>
+                            <td class="text-start fw-bold {{ 'current-vdv-name' if is_current_team else '' }}">{{ doi.ten }}</td>
                             <td>{{ doi.so_tran }}</td>
                             <td class="text-success fw-bold">{{ doi.thang }}</td>
                             <td class="text-danger">{{ doi.thua }}</td>
@@ -235,8 +237,8 @@
                 </thead>
                 <tbody>
                 {% for reg in registrations %}
-                <tr>
-                    <td class="fw-semibold">{{ reg[2] }}</td>
+                <tr class="{{ 'current-vdv-row' if reg[1] == current_vdv_id else '' }}">
+                    <td class="fw-semibold {{ 'current-vdv-name' if reg[1] == current_vdv_id else '' }}">{{ reg[2] }}</td>
                     <td><span class="badge bg-secondary">{{ reg[3] }}</span></td>
                     <td class="small text-muted">{{ reg[4] }}</td>
                     <td class="small">
@@ -272,7 +274,8 @@
                             <div class="group-board h-100">
                                 <div class="group-board-title">Bảng {{ bang.ten_bang }}</div>
                                 {% for doi in bang.doi_list %}
-                                <div class="group-team-row">{{ doi }}</div>
+                                {% set is_current_team = current_vdv_name and current_vdv_name in doi.split(' + ') %}
+                                <div class="group-team-row {{ 'current-vdv-row current-vdv-name' if is_current_team else '' }}">{{ doi }}</div>
                                 {% endfor %}
                             </div>
                         </div>
@@ -302,7 +305,9 @@
                                     🏟️ SÂN {{ san }}
                                 </div>
                                 {% for tran in tran_san %}
-                                <div class="tran-card rounded p-2 mb-2 {{ 'da-xong' if tran.trang_thai == 'Đã xong' else '' }}"
+                                {% set current_in_a = current_vdv_name and current_vdv_name in tran.doi_a.split(' + ') %}
+                                {% set current_in_b = current_vdv_name and current_vdv_name in tran.doi_b.split(' + ') %}
+                                <div class="tran-card rounded p-2 mb-2 {{ 'da-xong' if tran.trang_thai == 'Đã xong' else '' }} {{ 'current-vdv-card' if current_in_a or current_in_b else '' }}"
                                      data-match-id="{{ tran.id }}"
                                      data-score-a="{{ tran.diem_a if tran.diem_a is not none else '' }}"
                                      data-score-b="{{ tran.diem_b if tran.diem_b is not none else '' }}"
@@ -325,7 +330,7 @@
                                     </div>
                                     <div class="match-grid">
                                         <div class="team-name">
-                                            {% for p in tran.doi_a.split(' + ') %}<span>{{ p }}</span>{% endfor %}
+                                            {% for p in tran.doi_a.split(' + ') %}<span class="{{ 'current-vdv-name' if p == current_vdv_name else '' }}">{{ p }}</span>{% endfor %}
                                         </div>
                                         <div class="score-section">
                                             <span class="badge {{ 'bg-success' if tran.trang_thai == 'Đã xong' else 'bg-primary' }} px-2 py-1 score-pill" data-match-score="{{ tran.id }}" style="font-size:.92rem;">
@@ -336,7 +341,7 @@
                                             </span>
                                         </div>
                                         <div class="team-name text-end">
-                                            {% for p in tran.doi_b.split(' + ') %}<span>{{ p }}</span>{% endfor %}
+                                            {% for p in tran.doi_b.split(' + ') %}<span class="{{ 'current-vdv-name' if p == current_vdv_name else '' }}">{{ p }}</span>{% endfor %}
                                         </div>
                                     </div>
                                 </div>
@@ -362,6 +367,7 @@
 <script>
 const LIVE_SCORE_URL = '/giai-dau/{{ giai.id }}/live-scores';
 const LIVE_SCORE_POLL_MS = 2000;
+const CURRENT_VDV_NAME = {{ (current_vdv_name or '')|tojson }};
 let liveScorePollBusy = false;
 
 function formatLiveScore(diemA, diemB, order) {
@@ -424,12 +430,13 @@ function renderRanking(ranking) {
         const rank = index + 1;
         const rankLabel = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : rank;
         const rankClass = rank === 1 ? 'rank-1' : rank === 2 ? 'rank-2' : rank === 3 ? 'rank-3' : '';
+        const isCurrentTeam = CURRENT_VDV_NAME && String(doi.ten || '').split(' + ').includes(CURRENT_VDV_NAME);
         const hieuSo = Number.parseInt(doi.hieu_so, 10) || 0;
         const hieuSoClass = hieuSo > 0 ? 'hieu-so-pos' : hieuSo < 0 ? 'hieu-so-neg' : '';
         return `
-            <tr class="${rankClass}">
+            <tr class="${rankClass} ${isCurrentTeam ? 'current-vdv-row' : ''}">
                 <td>${rankLabel}</td>
-                <td class="text-start fw-bold">${escapeHtml(doi.ten)}</td>
+                <td class="text-start fw-bold ${isCurrentTeam ? 'current-vdv-name' : ''}">${escapeHtml(doi.ten)}</td>
                 <td>${doi.so_tran || 0}</td>
                 <td class="text-success fw-bold">${doi.thang || 0}</td>
                 <td class="text-danger">${doi.thua || 0}</td>
