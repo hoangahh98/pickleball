@@ -9,6 +9,41 @@ class VanDongVienModel:
         with db_cursor() as cursor:
             cursor.execute("SELECT id, ten_vdv, trinh_do, email, ghi_chu FROM van_dong_vien ORDER BY ten_vdv ASC;")
             return cursor.fetchall()
+
+    @staticmethod
+    def get_available_for_tournament(giai_id):
+        """Get players not yet registered for a tournament."""
+        with db_cursor() as cursor:
+            cursor.execute("""
+                SELECT v.id, v.ten_vdv, v.trinh_do, v.email, v.ghi_chu
+                FROM van_dong_vien v
+                WHERE NOT EXISTS (
+                    SELECT 1
+                    FROM dang_ky_giai dkg
+                    WHERE dkg.giai_dau_id = %s
+                      AND dkg.van_dong_vien_id = v.id
+                )
+                ORDER BY v.ten_vdv ASC;
+            """, (giai_id,))
+            return cursor.fetchall()
+
+    @staticmethod
+    def get_available_for_team(doi_bong_id):
+        """Get players not currently active in a team."""
+        with db_cursor() as cursor:
+            cursor.execute("""
+                SELECT v.id, v.ten_vdv, v.trinh_do, v.email, v.ghi_chu
+                FROM van_dong_vien v
+                WHERE NOT EXISTS (
+                    SELECT 1
+                    FROM doi_bong_thanh_vien tv
+                    WHERE tv.doi_bong_id = %s
+                      AND tv.van_dong_vien_id = v.id
+                      AND tv.active = TRUE
+                )
+                ORDER BY v.ten_vdv ASC;
+            """, (doi_bong_id,))
+            return cursor.fetchall()
     
     @staticmethod
     def get_by_id(vdv_id):
@@ -85,6 +120,46 @@ class AdminUserModel:
                 WHERE id = %s AND role = 'admin';
             """, (admin_id,))
             return cursor.fetchone()
+
+    @staticmethod
+    def get_available_for_tournament(giai_id, owner_admin_id=None, current_admin_id=None):
+        with db_cursor() as cursor:
+            cursor.execute("""
+                SELECT u.id, u.email
+                FROM users u
+                WHERE u.role = 'admin'
+                  AND lower(u.email) <> lower('admin@pickleball')
+                  AND (%s IS NULL OR u.id <> %s)
+                  AND (%s IS NULL OR u.id <> %s)
+                  AND NOT EXISTS (
+                      SELECT 1
+                      FROM giai_dau_admin_quyen q
+                      WHERE q.giai_dau_id = %s
+                        AND q.admin_id = u.id
+                  )
+                ORDER BY u.email ASC;
+            """, (owner_admin_id, owner_admin_id, current_admin_id, current_admin_id, giai_id))
+            return cursor.fetchall()
+
+    @staticmethod
+    def get_available_for_team(doi_bong_id, owner_admin_id=None, current_admin_id=None):
+        with db_cursor() as cursor:
+            cursor.execute("""
+                SELECT u.id, u.email
+                FROM users u
+                WHERE u.role = 'admin'
+                  AND lower(u.email) <> lower('admin@pickleball')
+                  AND (%s IS NULL OR u.id <> %s)
+                  AND (%s IS NULL OR u.id <> %s)
+                  AND NOT EXISTS (
+                      SELECT 1
+                      FROM doi_bong_admin_quyen q
+                      WHERE q.doi_bong_id = %s
+                        AND q.admin_id = u.id
+                  )
+                ORDER BY u.email ASC;
+            """, (owner_admin_id, owner_admin_id, current_admin_id, current_admin_id, doi_bong_id))
+            return cursor.fetchall()
 
     @staticmethod
     def email_exists(email, exclude_id=None):
@@ -258,6 +333,19 @@ class DangKyGiaiModel:
                 ORDER BY g.id DESC;
             """, (vdv_id,))
             return cursor.fetchall()
+
+    @staticmethod
+    def is_vdv_registered(giai_id, vdv_id):
+        if not vdv_id:
+            return False
+        with db_cursor() as cursor:
+            cursor.execute("""
+                SELECT 1
+                FROM dang_ky_giai
+                WHERE giai_dau_id = %s AND van_dong_vien_id = %s
+                LIMIT 1;
+            """, (giai_id, vdv_id))
+            return cursor.fetchone() is not None
 
     @staticmethod
     def get_by_tournaments(giai_ids):

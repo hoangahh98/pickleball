@@ -91,6 +91,9 @@ ON van_dong_vien (lower(email));
 CREATE INDEX IF NOT EXISTS idx_van_dong_vien_ten
 ON van_dong_vien (ten_vdv);
 
+CREATE INDEX IF NOT EXISTS idx_users_role_email
+ON users (role, lower(email));
+
 CREATE INDEX IF NOT EXISTS idx_giai_dau_id_desc
 ON giai_dau (id DESC);
 
@@ -211,6 +214,9 @@ ON doi_bong (ten_doi);
 
 CREATE INDEX IF NOT EXISTS idx_doi_bong_thanh_vien_doi
 ON doi_bong_thanh_vien (doi_bong_id, active, ten_thanh_vien);
+
+CREATE INDEX IF NOT EXISTS idx_doi_bong_thanh_vien_doi_vdv_active
+ON doi_bong_thanh_vien (doi_bong_id, van_dong_vien_id, active);
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_doi_bong_thanh_vien_doi_vdv
 ON doi_bong_thanh_vien (doi_bong_id, van_dong_vien_id)

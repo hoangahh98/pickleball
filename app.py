@@ -4,6 +4,7 @@ All logs stored in app_logs table
 """
 
 from flask import Flask, render_template, request, redirect, url_for, session, jsonify, g, send_from_directory, make_response
+import os
 from models import VanDongVienModel, AdminUserModel, TournamentModel, DangKyGiaiModel, DoiBongModel, MatchModel
 from services import FinanceService
 from knockout_logic import MatchSchedulerService
@@ -823,19 +824,11 @@ def chi_tiet_doi_bong(doi_bong_id):
         available_months = DoiBongModel.get_available_months(doi_bong_id)
         if selected_month[:7] not in available_months:
             available_months.insert(0, selected_month[:7])
-        registered_vdv_ids = {member[1] for member in members if member[1]}
-        all_vdv = [vdv for vdv in VanDongVienModel.get_all() if vdv[0] not in registered_vdv_ids]
+        all_vdv = VanDongVienModel.get_available_for_team(doi_bong_id)
         permissions = DoiBongModel.get_permissions(doi_bong_id)
-        permission_admin_ids = {permission[1] for permission in permissions}
         owner_admin_id = doi_bong[3]
         owner_admin = AdminUserModel.get_by_id(owner_admin_id) if owner_admin_id else None
-        admins = [
-            admin for admin in AdminUserModel.get_all()
-            if (admin[1] or '').strip().lower() != 'admin@pickleball'
-            and admin[0] != owner_admin_id
-            and admin[0] != user.get('id')
-            and admin[0] not in permission_admin_ids
-        ]
+        admins = AdminUserModel.get_available_for_team(doi_bong_id, owner_admin_id, user.get('id'))
         is_owner = _is_super_admin(user) or doi_bong[3] in (None, user.get('id'))
 
         DBLogger.log_request('GET', f'/doi-bong/{doi_bong_id}', user.get('email'))
@@ -1193,7 +1186,7 @@ def chi_tiet_giai_admin(giai_id):
             return "Không có quyền xem giải đấu này", 403
         
         registrations = DangKyGiaiModel.get_by_tournament(giai_id)
-        all_vdv = VanDongVienModel.get_all()
+        all_vdv = VanDongVienModel.get_available_for_tournament(giai_id)
         matches = MatchModel.get_all_by_tournament(giai_id)
         
         giai_detail = prepare_tournament_detail(giai_raw, registrations)
@@ -1252,16 +1245,9 @@ def chi_tiet_giai_admin(giai_id):
 
         DBLogger.log_request('GET', f'/giai-dau/{giai_id}/admin', user.get('email'))
         permissions = TournamentModel.get_permissions(giai_id)
-        permission_admin_ids = {permission[1] for permission in permissions}
         owner_admin_id = giai_detail.get('owner_admin_id')
         owner_admin = AdminUserModel.get_by_id(owner_admin_id) if owner_admin_id else None
-        admins = [
-            admin for admin in AdminUserModel.get_all()
-            if (admin[1] or '').strip().lower() != 'admin@pickleball'
-            and admin[0] != owner_admin_id
-            and admin[0] != user.get('id')
-            and admin[0] not in permission_admin_ids
-        ]
+        admins = AdminUserModel.get_available_for_tournament(giai_id, owner_admin_id, user.get('id'))
         is_owner = _is_super_admin(user) or owner_admin_id in (None, user.get('id'))
 
         return render_template(
@@ -1635,7 +1621,7 @@ def live_scores_giai_dau(giai_id):
         if user.get('role') == 'admin':
             can_view = bool(_get_tournament_for_admin_or_403(giai_id, user))
         elif user.get('role') == 'vdv':
-            can_view = any(t[1] == giai_id for t in DangKyGiaiModel.get_by_vdv(user.get('id')))
+            can_view = DangKyGiaiModel.is_vdv_registered(giai_id, user.get('id'))
 
         if not can_view:
             return jsonify({'success': False, 'error': 'Khong co quyen xem giai dau nay'}), 403
@@ -1991,4 +1977,5 @@ def chi_tiet_giai_vdv(giai_id):
         return f"❌ Error: {str(e)}", 500
 
 if __name__ == '__main__':
-    app.run(debug=False, host='0.0.0.0', port=5000)
+    port = int(os.environ.get("PORT", 5000))
+    app.run(debug=False, host='0.0.0.0', port=port)
