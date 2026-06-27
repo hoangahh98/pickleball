@@ -90,18 +90,6 @@ ALTER TABLE tran_dau
 ADD COLUMN IF NOT EXISTS giai_doan VARCHAR(20) DEFAULT 'vong_tron',
 ADD COLUMN IF NOT EXISTS bang_dau VARCHAR(20);
 
-CREATE TABLE IF NOT EXISTS tran_dau_edit_lock (
-    tran_id INTEGER PRIMARY KEY REFERENCES tran_dau(id) ON DELETE CASCADE,
-    locked_by_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
-    locked_by_email VARCHAR(255),
-    lock_token VARCHAR(100) NOT NULL,
-    expires_at TIMESTAMP NOT NULL,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE INDEX IF NOT EXISTS idx_tran_dau_edit_lock_expires
-ON tran_dau_edit_lock (expires_at);
-
 CREATE INDEX IF NOT EXISTS idx_van_dong_vien_lower_email
 ON van_dong_vien (lower(email));
 

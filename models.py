@@ -696,8 +696,6 @@ class DoiBongModel:
 
 
 class MatchModel:
-    EDIT_LOCK_TTL_SECONDS = 45
-
     """Trận đấu"""
 
     @staticmethod
@@ -717,66 +715,6 @@ class MatchModel:
                 ORDER BY vong_dau ASC, bang_dau ASC NULLS LAST, san_so_may ASC, id ASC;
             """, (giai_id,))
             return cursor.fetchall()
-
-    @staticmethod
-    def acquire_edit_lock(tran_id, user_id, user_email, lock_token):
-        with db_cursor(commit=True) as cursor:
-            cursor.execute("""
-                INSERT INTO tran_dau_edit_lock (
-                    tran_id, locked_by_user_id, locked_by_email, lock_token, expires_at, updated_at
-                )
-                VALUES (
-                    %s, %s, %s, %s,
-                    NOW() + (%s * INTERVAL '1 second'),
-                    CURRENT_TIMESTAMP
-                )
-                ON CONFLICT (tran_id)
-                DO UPDATE SET
-                    locked_by_user_id = EXCLUDED.locked_by_user_id,
-                    locked_by_email = EXCLUDED.locked_by_email,
-                    lock_token = EXCLUDED.lock_token,
-                    expires_at = EXCLUDED.expires_at,
-                    updated_at = CURRENT_TIMESTAMP
-                WHERE tran_dau_edit_lock.expires_at < NOW()
-                   OR tran_dau_edit_lock.locked_by_user_id = EXCLUDED.locked_by_user_id
-                   OR tran_dau_edit_lock.lock_token = EXCLUDED.lock_token
-                RETURNING tran_id, locked_by_user_id, locked_by_email, lock_token, expires_at;
-            """, (tran_id, user_id, user_email, lock_token, MatchModel.EDIT_LOCK_TTL_SECONDS))
-            acquired = cursor.fetchone()
-            if acquired:
-                return {"acquired": True, "lock": acquired}
-
-            cursor.execute("""
-                SELECT tran_id, locked_by_user_id, locked_by_email, expires_at
-                FROM tran_dau_edit_lock
-                WHERE tran_id = %s;
-            """, (tran_id,))
-            return {"acquired": False, "lock": cursor.fetchone()}
-
-    @staticmethod
-    def refresh_edit_lock(tran_id, user_id, lock_token):
-        with db_cursor(commit=True) as cursor:
-            cursor.execute("""
-                UPDATE tran_dau_edit_lock
-                SET expires_at = NOW() + (%s * INTERVAL '1 second'),
-                    updated_at = CURRENT_TIMESTAMP
-                WHERE tran_id = %s
-                  AND locked_by_user_id = %s
-                  AND lock_token = %s
-                  AND expires_at >= NOW()
-                RETURNING tran_id;
-            """, (MatchModel.EDIT_LOCK_TTL_SECONDS, tran_id, user_id, lock_token))
-            return cursor.fetchone() is not None
-
-    @staticmethod
-    def release_edit_lock(tran_id, user_id, lock_token):
-        with db_cursor(commit=True) as cursor:
-            cursor.execute("""
-                DELETE FROM tran_dau_edit_lock
-                WHERE tran_id = %s
-                  AND locked_by_user_id = %s
-                  AND lock_token = %s;
-            """, (tran_id, user_id, lock_token))
     
     @staticmethod
     def delete_by_tournament(giai_id):
