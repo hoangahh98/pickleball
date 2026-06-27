@@ -8,24 +8,24 @@
 .card-header.bg-dark,
 .modal-header.bg-dark,
 .bg-dark:not(.navbar) {
-    background: linear-gradient(90deg, #0f766e, #0d6efd) !important;
+    background: #0d6efd !important;
     color: #fff !important;
 }
 
 .table-dark {
-    --bs-table-bg: #0f766e;
-    --bs-table-striped-bg: #116d75;
+    --bs-table-bg: #0d6efd;
+    --bs-table-striped-bg: #0b5ed7;
     --bs-table-striped-color: #fff;
-    --bs-table-active-bg: #0d6efd;
+    --bs-table-active-bg: #0a58ca;
     --bs-table-active-color: #fff;
-    --bs-table-hover-bg: #138496;
+    --bs-table-hover-bg: #0b5ed7;
     --bs-table-hover-color: #fff;
     color: #fff;
     border-color: rgba(255, 255, 255, .24);
 }
 
 .table-dark th {
-    background: linear-gradient(90deg, #0f766e, #0d6efd) !important;
+    background: #0d6efd !important;
     color: #fff !important;
     border-color: rgba(255, 255, 255, .22) !important;
 }
