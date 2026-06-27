@@ -90,6 +90,8 @@ ALTER TABLE tran_dau
 ADD COLUMN IF NOT EXISTS giai_doan VARCHAR(20) DEFAULT 'vong_tron',
 ADD COLUMN IF NOT EXISTS bang_dau VARCHAR(20);
 
+DROP TABLE IF EXISTS tran_dau_edit_lock;
+
 CREATE INDEX IF NOT EXISTS idx_van_dong_vien_lower_email
 ON van_dong_vien (lower(email));
 
