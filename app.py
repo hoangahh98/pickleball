@@ -5,6 +5,7 @@ All logs stored in app_logs table
 
 from flask import Flask, render_template, request, redirect, url_for, session, jsonify, g, send_from_directory, make_response
 import os
+import secrets
 from models import VanDongVienModel, AdminUserModel, TournamentModel, DangKyGiaiModel, DoiBongModel, MatchModel
 from services import FinanceService
 from knockout_logic import MatchSchedulerService
@@ -1572,6 +1573,7 @@ def cap_nhat_ty_so(tran_id):
         diem_b_raw = data.get('diem_b')
         thu_tu_raw = data.get('thu_tu_danh', 2)
         doi_dang_giao = data.get('doi_dang_giao', 'A')
+        lock_token = data.get('lock_token')
 
         diem_a = int(diem_a_raw) if str(diem_a_raw or '').strip() != '' else (0 if is_fetch_score_update else None)
         diem_b = int(diem_b_raw) if str(diem_b_raw or '').strip() != '' else (0 if is_fetch_score_update else None)
@@ -1583,6 +1585,11 @@ def cap_nhat_ty_so(tran_id):
         giai_raw = _get_tournament_for_admin_or_403(giai_id, user)
         if not giai_raw:
             return "Khong co quyen cap nhat giai dau nay", 403
+        if is_fetch_score_update and not MatchModel.refresh_edit_lock(tran_id, user.get('id'), lock_token):
+            return jsonify({
+                'success': False,
+                'error': 'Trận này đang được người khác sửa hoặc phiên sửa đã hết hạn. Hãy đóng và mở lại trận.'
+            }), 409
         
         before_match_count = len(MatchModel.get_all_by_tournament(giai_id)) if is_fetch_score_update else 0
         trang_thai, diem_a, diem_b = MatchModel.update_score(tran_id, diem_a, diem_b, thu_tu_danh, doi_dang_giao)
@@ -1613,6 +1620,52 @@ def cap_nhat_ty_so(tran_id):
         if is_fetch_score_update:
             return jsonify({'success': False, 'error': str(e)}), 500
         return f"❌ Error: {str(e)}", 500
+
+@app.route('/tran-dau/<int:tran_id>/khoa-sua', methods=['POST'])
+@admin_required
+def khoa_sua_tran_dau(tran_id):
+    user = session.get('user', {})
+    try:
+        with db_cursor() as cursor:
+            cursor.execute("SELECT giai_dau_id FROM tran_dau WHERE id = %s;", (tran_id,))
+            row = cursor.fetchone()
+        if not row:
+            return jsonify({'success': False, 'error': 'Khong tim thay tran dau'}), 404
+        if not _get_tournament_for_admin_or_403(row[0], user):
+            return jsonify({'success': False, 'error': 'Khong co quyen sua tran dau nay'}), 403
+
+        lock_token = secrets.token_urlsafe(24)
+        result = MatchModel.acquire_edit_lock(tran_id, user.get('id'), user.get('email'), lock_token)
+        if result.get('acquired'):
+            return jsonify({
+                'success': True,
+                'lock_token': lock_token,
+                'ttl_seconds': MatchModel.EDIT_LOCK_TTL_SECONDS,
+            })
+
+        lock = result.get('lock')
+        locked_by = lock[2] if lock else 'nguoi khac'
+        return jsonify({
+            'success': False,
+            'error': f'Trận này đang được {locked_by} sửa. Vui lòng thử lại sau.'
+        }), 409
+    except Exception as e:
+        DBLogger.log_error(f"Error acquiring match edit lock: {str(e)}", user.get('email'), f'/tran-dau/{tran_id}/khoa-sua', context=traceback.format_exc())
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/tran-dau/<int:tran_id>/mo-khoa-sua', methods=['POST'])
+@admin_required
+def mo_khoa_sua_tran_dau(tran_id):
+    user = session.get('user', {})
+    try:
+        data = request.get_json(silent=True) or request.form
+        MatchModel.release_edit_lock(tran_id, user.get('id'), data.get('lock_token'))
+        return jsonify({'success': True})
+    except Exception as e:
+        DBLogger.log_error(f"Error releasing match edit lock: {str(e)}", user.get('email'), f'/tran-dau/{tran_id}/mo-khoa-sua', context=traceback.format_exc())
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 
 @app.route('/giai-dau/<int:giai_id>/live-scores')
 @login_required

@@ -612,6 +612,8 @@ BTC</textarea>
                                      tabindex="0"
                                      data-match-id="{{ tran.id }}"
                                      data-action-url="/tran-dau/{{ tran.id }}/cap-nhat-ty-so"
+                                     data-lock-url="/tran-dau/{{ tran.id }}/khoa-sua"
+                                     data-unlock-url="/tran-dau/{{ tran.id }}/mo-khoa-sua"
                                      data-team-a="{{ tran.doi_a|e }}"
                                      data-team-b="{{ tran.doi_b|e }}"
                                      data-score-a="{{ tran.diem_a if tran.diem_a is not none else '' }}"
@@ -912,6 +914,8 @@ let pendingSaveAfterCurrent = false;
 let lastSaveRequestId = 0;
 let lastQueuedScoreKey = '';
 let lastSavedScoreKey = '';
+let activeLockToken = '';
+let isOpeningScoreModal = false;
 const LIVE_SCORE_URL = '/giai-dau/{{ giai.id }}/live-scores';
 const LIVE_SCORE_POLL_MS = 2000;
 const SCORE_SAVE_DELAY_MS = 220;
@@ -990,7 +994,8 @@ function getCurrentScorePayload() {
         diem_a: scoreValueForSave(scoreInputA.value),
         diem_b: scoreValueForSave(scoreInputB.value),
         thu_tu_danh: document.querySelector('input[name="scoreOrder"]:checked')?.value || '2',
-        doi_dang_giao: document.querySelector('input[name="servingTeam"]:checked')?.value || 'A'
+        doi_dang_giao: document.querySelector('input[name="servingTeam"]:checked')?.value || 'A',
+        lock_token: activeLockToken
     };
 }
 
@@ -1150,7 +1155,55 @@ function renderRanking(ranking) {
     container.innerHTML = renderTable(renderRows(ranking));
 }
 
-function openScoreModal(card) {
+async function acquireScoreLock(card) {
+    const response = await fetch(card.dataset.lockUrl, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-Requested-With': 'fetch'
+        },
+        body: JSON.stringify({})
+    });
+    const result = await response.json();
+    if (!response.ok || !result.success) {
+        throw new Error(result.error || 'Trận này đang được người khác sửa.');
+    }
+    return result.lock_token;
+}
+
+function releaseScoreLock() {
+    if (!activeMatchCard || !activeLockToken) return;
+    const payload = JSON.stringify({ lock_token: activeLockToken });
+    if (navigator.sendBeacon) {
+        navigator.sendBeacon(activeMatchCard.dataset.unlockUrl, new Blob([payload], { type: 'application/json' }));
+    } else {
+        fetch(activeMatchCard.dataset.unlockUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'fetch'
+            },
+            body: payload,
+            keepalive: true
+        }).catch(() => {});
+    }
+    activeLockToken = '';
+}
+
+async function openScoreModal(card) {
+    if (isOpeningScoreModal) return;
+    isOpeningScoreModal = true;
+    setSaveStatus('Đang khóa trận...', 'text-primary');
+    try {
+        activeLockToken = await acquireScoreLock(card);
+    } catch (error) {
+        activeMatchCard = null;
+        activeLockToken = '';
+        alert(error.message);
+        isOpeningScoreModal = false;
+        return;
+    }
+    isOpeningScoreModal = false;
     activeMatchCard = card;
     document.getElementById('scoreTeamA').textContent = card.dataset.teamA.replaceAll(' + ', '\n');
     document.getElementById('scoreTeamB').textContent = card.dataset.teamB.replaceAll(' + ', '\n');
@@ -1299,7 +1352,9 @@ async function saveActiveScore() {
         });
         const result = await response.json();
         if (!response.ok || !result.success) {
-            throw new Error(result.error || 'Không lưu được điểm');
+            const saveError = new Error(result.error || 'Không lưu được điểm');
+            saveError.status = response.status;
+            throw saveError;
         }
         if (result.reload_required) {
             window.location.reload();
@@ -1325,11 +1380,18 @@ async function saveActiveScore() {
         };
         setSaveStatus('Đã tự lưu', 'text-success');
     } catch (error) {
+        if (error.status === 409) {
+            pendingSaveAfterCurrent = false;
+            lastSavedScoreKey = lastQueuedScoreKey;
+            activeLockToken = '';
+        }
         setSaveStatus(error.message, 'text-danger');
     } finally {
-        activeMatchCard.classList.remove('saving');
+        if (activeMatchCard) {
+            activeMatchCard.classList.remove('saving');
+        }
         isSavingScore = false;
-        if (pendingSaveAfterCurrent || lastQueuedScoreKey !== lastSavedScoreKey) {
+        if (activeMatchCard && (pendingSaveAfterCurrent || lastQueuedScoreKey !== lastSavedScoreKey)) {
             pendingSaveAfterCurrent = false;
             window.clearTimeout(saveScoreTimer);
             saveScoreTimer = window.setTimeout(saveActiveScore, SCORE_SAVE_DELAY_MS);
@@ -1346,6 +1408,17 @@ document.querySelectorAll('.tran-card[data-match-id]').forEach((card) => {
         }
     });
 });
+
+scoreModalEl.addEventListener('hidden.bs.modal', () => {
+    window.clearTimeout(saveScoreTimer);
+    window.clearTimeout(speakScoreTimer);
+    releaseScoreLock();
+    activeMatchCard = null;
+    isSavingScore = false;
+    pendingSaveAfterCurrent = false;
+});
+
+window.addEventListener('beforeunload', releaseScoreLock);
 
 [scoreInputA, scoreInputB].forEach((input) => {
     input.addEventListener('click', (event) => event.stopPropagation());
