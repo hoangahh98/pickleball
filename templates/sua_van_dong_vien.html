@@ -11,7 +11,7 @@
     <nav class="navbar navbar-dark bg-dark mb-4">
         <div class="container">
             <span class="navbar-brand mb-0 h1">✏️ CHỈNH SỬA VĐV</span>
-            <a href="/van-dong-vien" class="btn btn-sm btn-outline-light">⬅️ Quay lại</a>
+            <a href="{{ vdv_list_url }}" class="btn btn-sm btn-outline-light">⬅️ Quay lại</a>
         </div>
     </nav>
 
@@ -27,7 +27,7 @@
                     </ul>
                 </div>
                 {% endif %}
-                <form action="/van-dong-vien/{{ vdv[0] }}/sua" method="POST">
+                <form action="/van-dong-vien/{{ vdv[0] }}/sua?return_to={{ return_to|urlencode }}" method="POST">
                     <div class="mb-3">
                         <label class="form-label fw-bold">Tên VĐV <span class="text-danger">*</span></label>
                         <input type="text" class="form-control" name="ten_vdv" value="{{ vdv[1] }}" required>
@@ -55,7 +55,7 @@
 
                     <div class="d-grid gap-2">
                         <button type="submit" class="btn btn-primary btn-lg fw-bold">💾 LƯU THAY ĐỔI</button>
-                        <a href="/van-dong-vien" class="btn btn-secondary">HỦY</a>
+                        <a href="{{ vdv_list_url }}" class="btn btn-secondary">HỦY</a>
                     </div>
                 </form>
             </div>

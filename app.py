@@ -326,6 +326,30 @@ def api_user_actions(email):
 
 # ============ VĐV MANAGEMENT (ADMIN) ============
 
+def _safe_vdv_return_to(default='/'):
+    return_to = (request.values.get('return_to') or default).strip()
+    if return_to in ('/', '/giai-dau', '/doi-bong'):
+        return return_to
+    if return_to.startswith('/giai-dau/') or return_to.startswith('/doi-bong/'):
+        return return_to
+    return default
+
+
+def _vdv_return_context():
+    return_to = _safe_vdv_return_to()
+    if return_to.startswith('/giai-dau'):
+        return_label = 'Giải đấu'
+    elif return_to.startswith('/doi-bong'):
+        return_label = 'Quản lý đội bóng'
+    else:
+        return_label = 'Trang chủ'
+    return {
+        'return_to': return_to,
+        'return_label': return_label,
+        'vdv_list_url': url_for('van_dong_vien_list', return_to=return_to),
+    }
+
+
 @app.route('/van-dong-vien')
 @admin_required
 def van_dong_vien_list():
@@ -334,7 +358,7 @@ def van_dong_vien_list():
     try:
         vdv_list = VanDongVienModel.get_all()
         DBLogger.log_request('GET', '/van-dong-vien', user.get('email'))
-        return render_template('van_dong_vien.html', vdv_list=vdv_list)
+        return render_template('van_dong_vien.html', vdv_list=vdv_list, **_vdv_return_context())
     except Exception as e:
         DBLogger.log_error(f"Error loading VĐV list: {str(e)}", user.get('email'), '/van-dong-vien', context=traceback.format_exc())
         return f"❌ Error: {str(e)}", 500
@@ -345,14 +369,15 @@ def them_van_dong_vien():
     """Thêm VĐV mới"""
     user = session.get('user', {})
     try:
+        return_context = _vdv_return_context()
         if request.method == 'GET':
-            return render_template('them_van_dong_vien.html', form_data={}, errors=[])
+            return render_template('them_van_dong_vien.html', form_data={}, errors=[], **return_context)
 
         form_data, errors = normalize_vdv_form(request.form)
         if not errors and VanDongVienModel.email_exists(form_data['email']):
             errors.append("Email đã được dùng cho VĐV khác.")
         if errors:
-            return render_template('them_van_dong_vien.html', form_data=form_data, errors=errors), 400
+            return render_template('them_van_dong_vien.html', form_data=form_data, errors=errors, **return_context), 400
 
         ten_vdv = form_data['ten_vdv']
         trinh_do = form_data['trinh_do']
@@ -361,7 +386,7 @@ def them_van_dong_vien():
 
         VanDongVienModel.create(ten_vdv, trinh_do, email, ghi_chu)
         DBLogger.log_success(f"VĐV created: {ten_vdv}", user.get('email'), '/van-dong-vien/them')
-        return redirect('/van-dong-vien')
+        return redirect(return_context['vdv_list_url'])
     except Exception as e:
         DBLogger.log_error(f"Error creating VĐV: {str(e)}", user.get('email'), '/van-dong-vien/them', context=traceback.format_exc())
         return f"❌ Error: {str(e)}", 500
@@ -372,11 +397,12 @@ def sua_van_dong_vien(vdv_id):
     """Sửa VĐV"""
     user = session.get('user', {})
     try:
+        return_context = _vdv_return_context()
         if request.method == 'GET':
             vdv = VanDongVienModel.get_by_id(vdv_id)
             if not vdv:
                 return "Không tìm thấy", 404
-            return render_template('sua_van_dong_vien.html', vdv=vdv, errors=[])
+            return render_template('sua_van_dong_vien.html', vdv=vdv, errors=[], **return_context)
 
         vdv = VanDongVienModel.get_by_id(vdv_id)
         if not vdv:
@@ -387,7 +413,7 @@ def sua_van_dong_vien(vdv_id):
             errors.append("Email đã được dùng cho VĐV khác.")
         if errors:
             vdv_form = (vdv_id, form_data['ten_vdv'], form_data['trinh_do'], form_data['email'], None, form_data['ghi_chu'])
-            return render_template('sua_van_dong_vien.html', vdv=vdv_form, errors=errors), 400
+            return render_template('sua_van_dong_vien.html', vdv=vdv_form, errors=errors, **return_context), 400
 
         ten_vdv = form_data['ten_vdv']
         trinh_do = form_data['trinh_do']
@@ -396,7 +422,7 @@ def sua_van_dong_vien(vdv_id):
 
         VanDongVienModel.update(vdv_id, ten_vdv, trinh_do, email, ghi_chu)
         DBLogger.log_success(f"VĐV {vdv_id} updated: {ten_vdv}", user.get('email'), f'/van-dong-vien/{vdv_id}/sua')
-        return redirect('/van-dong-vien')
+        return redirect(return_context['vdv_list_url'])
     except Exception as e:
         DBLogger.log_error(f"Error updating VĐV: {str(e)}", user.get('email'), f'/van-dong-vien/{vdv_id}/sua', context=traceback.format_exc())
         return f"❌ Error: {str(e)}", 500
@@ -407,11 +433,12 @@ def xoa_van_dong_vien(vdv_id):
     """Xóa VĐV"""
     user = session.get('user', {})
     try:
+        return_context = _vdv_return_context()
         vdv = VanDongVienModel.get_by_id(vdv_id)
         ten = vdv[1] if vdv else f"ID {vdv_id}"
         VanDongVienModel.delete(vdv_id)
         DBLogger.log_success(f"VĐV deleted: {ten}", user.get('email'), f'/van-dong-vien/{vdv_id}/xoa')
-        return redirect('/van-dong-vien')
+        return redirect(return_context['vdv_list_url'])
     except Exception as e:
         DBLogger.log_error(f"Error deleting VĐV: {str(e)}", user.get('email'), f'/van-dong-vien/{vdv_id}/xoa', context=traceback.format_exc())
         return f"❌ Error: {str(e)}", 500

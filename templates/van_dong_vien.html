@@ -28,7 +28,7 @@
     <div class="container-fluid px-4">
         <span class="navbar-brand mb-0 h1">👥 Quản Lý VĐV</span>
         <div class="d-flex gap-2">
-            <a href="/" class="btn btn-sm btn-outline-light">⬅️ Trang chủ</a>
+            <a href="{{ return_to }}" class="btn btn-sm btn-outline-light">⬅️ {{ return_label }}</a>
             <a href="/dang-xuat" class="btn btn-sm btn-outline-danger">🚪 Đăng xuất</a>
         </div>
     </div>
@@ -72,7 +72,7 @@
     <!-- Tìm kiếm + nút thêm -->
     <div class="d-flex flex-column flex-md-row align-items-stretch align-items-md-center justify-content-md-end gap-2 mb-4">
             <input type="text" id="searchInput" class="form-control" placeholder="🔍 Tìm tên / email...">
-            <a href="/van-dong-vien/them" class="btn btn-success fw-bold px-4">➕ THÊM VĐV</a>
+            <a href="/van-dong-vien/them?return_to={{ return_to|urlencode }}" class="btn btn-success fw-bold px-4">➕ THÊM VĐV</a>
     </div>
 
     <!-- Bảng VĐV -->
@@ -103,8 +103,8 @@
                     <td class="small text-muted text-break-cell">{{ vdv[3] }}</td>
                     <td class="small text-muted text-break-cell">{{ vdv[4] or '' }}</td>
                     <td class="text-center">
-                        <a href="/van-dong-vien/{{ vdv[0] }}/sua" class="btn btn-sm btn-warning py-0">✏️</a>
-                        <a href="/van-dong-vien/{{ vdv[0] }}/xoa" class="btn btn-sm btn-danger py-0"
+                        <a href="/van-dong-vien/{{ vdv[0] }}/sua?return_to={{ return_to|urlencode }}" class="btn btn-sm btn-warning py-0">✏️</a>
+                        <a href="/van-dong-vien/{{ vdv[0] }}/xoa?return_to={{ return_to|urlencode }}" class="btn btn-sm btn-danger py-0"
                            onclick="return confirm('Xóa VĐV {{ vdv[1] }}? Hành động này sẽ xóa toàn bộ đăng ký giải của VĐV này.')">🗑️</a>
                     </td>
                 </tr>
@@ -113,7 +113,7 @@
             </table>
             </div>
             {% else %}
-            <div class="alert alert-info m-3">Chưa có VĐV nào. <a href="/van-dong-vien/them">Thêm ngay</a></div>
+            <div class="alert alert-info m-3">Chưa có VĐV nào. <a href="/van-dong-vien/them?return_to={{ return_to|urlencode }}">Thêm ngay</a></div>
             {% endif %}
         </div>
     </div>

@@ -17,7 +17,7 @@
 <nav class="navbar navbar-dark bg-dark mb-4">
     <div class="container-fluid px-4">
         <span class="navbar-brand mb-0 h1">➕ Thêm VĐV Mới</span>
-        <a href="/van-dong-vien" class="btn btn-sm btn-outline-light">⬅️ Quay lại</a>
+        <a href="{{ vdv_list_url }}" class="btn btn-sm btn-outline-light">⬅️ Quay lại</a>
     </div>
 </nav>
 
@@ -33,7 +33,7 @@
             </ul>
         </div>
         {% endif %}
-        <form action="/van-dong-vien/them" method="POST">
+        <form action="/van-dong-vien/them?return_to={{ return_to|urlencode }}" method="POST">
 
             <!-- Tên -->
             <div class="mb-3">
@@ -78,7 +78,7 @@
 
             <div class="d-grid gap-2">
                 <button type="submit" class="btn btn-success btn-lg fw-bold">✅ THÊM VĐV</button>
-                <a href="/van-dong-vien" class="btn btn-outline-secondary">Huỷ</a>
+                <a href="{{ vdv_list_url }}" class="btn btn-outline-secondary">Huỷ</a>
             </div>
         </form>
     </div>
