@@ -96,6 +96,7 @@ def log_user_action(response):
             status_code=response.status_code,
             ip_address=request.headers.get("X-Forwarded-For", request.remote_addr),
             user_agent=request.headers.get("User-Agent"),
+            cf_ray=request.headers.get("CF-Ray"),
             details=details,
         )
     return response
@@ -118,6 +119,7 @@ def log_unhandled_exception(error):
         request_path=request.path,
         ip_address=request.headers.get("X-Forwarded-For", request.remote_addr),
         user_agent=request.headers.get("User-Agent"),
+        cf_ray=request.headers.get("CF-Ray"),
     )
     return "❌ Lỗi hệ thống", 500
 

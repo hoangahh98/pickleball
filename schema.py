@@ -19,7 +19,8 @@ ADD COLUMN IF NOT EXISTS exception_type VARCHAR(255),
 ADD COLUMN IF NOT EXISTS request_path TEXT,
 ADD COLUMN IF NOT EXISTS request_method VARCHAR(20),
 ADD COLUMN IF NOT EXISTS ip_address VARCHAR(100),
-ADD COLUMN IF NOT EXISTS user_agent TEXT;
+ADD COLUMN IF NOT EXISTS user_agent TEXT,
+ADD COLUMN IF NOT EXISTS cf_ray VARCHAR(100);
 
 CREATE TABLE IF NOT EXISTS user_actions (
     id SERIAL PRIMARY KEY,
@@ -32,9 +33,13 @@ CREATE TABLE IF NOT EXISTS user_actions (
     status_code INTEGER,
     ip_address VARCHAR(100),
     user_agent TEXT,
+    cf_ray VARCHAR(100),
     details JSONB,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+ALTER TABLE user_actions
+ADD COLUMN IF NOT EXISTS cf_ray VARCHAR(100);
 """
 
 

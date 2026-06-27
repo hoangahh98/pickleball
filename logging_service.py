@@ -56,67 +56,75 @@ class DBLogger:
             request_method = method
             ip_address = None
             user_agent = None
+            cf_ray = None
             if has_request_context():
                 request_path = request.path
                 request_method = request.method
                 ip_address = request.headers.get("X-Forwarded-For", request.remote_addr)
                 user_agent = request.headers.get("User-Agent")
+                cf_ray = request.headers.get("CF-Ray")
 
             with db_cursor(commit=True) as cursor:
                 cursor.execute("""
                     INSERT INTO app_logs (
                         log_level, message, context, user_email, route, method, status_code,
-                        exception_type, request_path, request_method, ip_address, user_agent
+                        exception_type, request_path, request_method, ip_address, user_agent, cf_ray
                     )
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
                 """, (
                     level, message, context, user_email, route, method, status_code,
-                    None, request_path, request_method, ip_address, user_agent
+                    None, request_path, request_method, ip_address, user_agent, cf_ray
                 ))
         except Exception as e:
             DBLogger._safe_console_log(e, level, message)
 
     @staticmethod
     def log_exception(message, exc, user_email=None, route=None, method=None, status_code=500, context=None,
-                      request_path=None, ip_address=None, user_agent=None):
+                      request_path=None, ip_address=None, user_agent=None, cf_ray=None):
         try:
             if DB_CONFIG_ERROR:
                 DBLogger._safe_console_log(RuntimeError(DB_CONFIG_ERROR), "ERROR", message)
                 return
 
+            if cf_ray is None and has_request_context():
+                cf_ray = request.headers.get("CF-Ray")
+
             with db_cursor(commit=True) as cursor:
                 cursor.execute("""
                     INSERT INTO app_logs (
                         log_level, message, context, user_email, route, method, status_code,
-                        exception_type, request_path, request_method, ip_address, user_agent
+                        exception_type, request_path, request_method, ip_address, user_agent, cf_ray
                     )
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
                 """, (
                     "ERROR", message, context, user_email, route, method, status_code,
                     exc.__class__.__name__ if exc else None,
-                    request_path, method, ip_address, user_agent
+                    request_path, method, ip_address, user_agent, cf_ray
                 ))
         except Exception as e:
             DBLogger._safe_console_log(e, "ERROR", message)
 
     @staticmethod
     def log_user_action(user_email=None, user_role=None, action=None, route=None, endpoint=None, method=None,
-                        status_code=None, ip_address=None, user_agent=None, details=None):
+                        status_code=None, ip_address=None, user_agent=None, details=None, cf_ray=None):
         try:
             if DB_CONFIG_ERROR:
                 DBLogger._safe_console_log(RuntimeError(DB_CONFIG_ERROR), "ACTION", action or route or "unknown")
                 return
 
+            if cf_ray is None and has_request_context():
+                cf_ray = request.headers.get("CF-Ray")
+
             with db_cursor(commit=True) as cursor:
                 cursor.execute("""
                     INSERT INTO user_actions (
                         user_email, user_role, action, route, endpoint, method, status_code,
-                        ip_address, user_agent, details
+                        ip_address, user_agent, cf_ray, details
                     )
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb);
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb);
                 """, (
                     user_email, user_role, action, route, endpoint, method, status_code,
-                    ip_address, user_agent, json.dumps(details or {}, ensure_ascii=False)
+                    ip_address, user_agent, cf_ray, json.dumps(details or {}, ensure_ascii=False)
                 ))
         except Exception as e:
             DBLogger._safe_console_log(e, "ACTION", action or route or "unknown")
